@@ -31,22 +31,51 @@ def safe_join_root(rel_path):
         candidate = os.path.normpath(rel_path)
     else:
         candidate = os.path.normpath(os.path.join(PROJECT_ROOT, rel_path))
-    # Allow files inside project root or inside version_tkinter/images
+    
+    # Define all possible image directories
     tk_images_root = os.path.normpath(os.path.join(PROJECT_ROOT, "version_tkinter", "images"))
+    tk_images2_root = os.path.normpath(os.path.join(PROJECT_ROOT, "version_tkinter", "images 2"))
+    site_exercices2_root = os.path.normpath(os.path.join(PROJECT_ROOT, "version_site", "exercices2"))
+    
     if candidate.startswith(PROJECT_ROOT) and os.path.exists(candidate):
         return candidate
+    
     # If candidate wasn't found at project root, try relative to version_tkinter/images
     alt = os.path.normpath(os.path.join(PROJECT_ROOT, rel_path))
     if os.path.exists(alt):
         return alt
+    
     # Try direct path under version_tkinter/images
     alt2 = os.path.normpath(os.path.join(PROJECT_ROOT, "version_tkinter", rel_path))
     if os.path.exists(alt2):
         return alt2
+    
     # Try joining rel_path to version_tkinter/images (when rel_path starts with images/...)
     alt3 = os.path.normpath(os.path.join(tk_images_root, os.path.relpath(rel_path, "images"))) if rel_path.startswith("images") else None
     if alt3 and os.path.exists(alt3):
         return alt3
+    
+    # Try in version_tkinter/images 2 folder
+    alt4 = os.path.normpath(os.path.join(tk_images2_root, os.path.basename(rel_path)))
+    if os.path.exists(alt4):
+        return alt4
+    
+    # Try joining rel_path to version_tkinter/images 2
+    alt5 = os.path.normpath(os.path.join(tk_images2_root, os.path.relpath(rel_path, "images"))) if rel_path.startswith("images") else None
+    if alt5 and os.path.exists(alt5):
+        return alt5
+    
+    # Try in version_site/exercices2 folder (for new exercises)
+    if rel_path.startswith("exercices2/"):
+        alt6 = os.path.normpath(os.path.join(site_exercices2_root, os.path.relpath(rel_path, "exercices2")))
+        if os.path.exists(alt6):
+            return alt6
+    
+    # Try direct path in version_site/exercices2
+    alt7 = os.path.normpath(os.path.join(site_exercices2_root, os.path.basename(rel_path)))
+    if os.path.exists(alt7):
+        return alt7
+    
     return None
 
 @app.route("/media/<path:path>")
