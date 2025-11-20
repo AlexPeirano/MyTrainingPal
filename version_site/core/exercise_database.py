@@ -31,6 +31,40 @@ EXERCISE_DATABASE = {
     "image_path": "images/jpg2png-2/dips.png"
     },
     
+    "Chest Press": {
+        "name": "Chest Press",
+        "category": "push",
+        "pattern": "Horizontal Push (Chest)",
+        "type": "polyarticulaire",
+        "primary_muscles": ["Pectoraux"],
+        "secondary_muscles": ["Triceps", "Epaules"],
+        "all_muscles": ["Pectoraux", "Triceps", "Epaules"],
+        "equipment": "Chest Press Machine",
+        "image_path": "exercices2/machine-chest-press-resized.png.webp"
+    },
+    "Push ups": {
+        "name": "Push ups",
+        "category": "push",
+        "pattern": "Horizontal Push (Chest)",
+        "type": "polyarticulaire",
+        "primary_muscles": ["Pectoraux"],
+        "secondary_muscles": ["Triceps", "Epaules"],
+        "all_muscles": ["Pectoraux", "Triceps", "Epaules"],
+        "equipment": "Bodyweight",
+        "image_path": "exercices2/pushups.png"
+    },
+    "Dumbell Bench Press": {
+        "name": "Dumbell Bench Press",
+        "category": "push",
+        "pattern": "Horizontal Push (Chest)",
+        "type": "polyarticulaire",
+        "primary_muscles": ["Pectoraux"],
+        "secondary_muscles": ["Triceps", "Epaules"],
+        "all_muscles": ["Pectoraux", "Triceps", "Epaules"],
+        "equipment": "Dumbells",
+        "image_path": "exercices2/dumbell_bench_press.png"
+    },
+
     # PUSH - Vertical Push
     "Overhead press": {
         "name": "Overhead press",
@@ -41,8 +75,31 @@ EXERCISE_DATABASE = {
         "secondary_muscles": ["Triceps"],
         "all_muscles": ["Epaules", "Triceps"],
         "equipment": "Barbell",
-        "difficulty": "intermediate",
     "image_path": "images/jpg2png-2/jpg2png-3/overheadpress1.png"
+    },
+
+    "Machine Overhead press": {
+        "name": "Machine Overhead press",
+        "category": "push",
+        "pattern": "Vertical Push", 
+        "type": "polyarticulaire",
+        "primary_muscles": ["Epaules"],
+        "secondary_muscles": ["Triceps"],
+        "all_muscles": ["Epaules", "Triceps"],
+        "equipment": "Overhead Press Machine",
+    "image_path": "exercices2/lever-seated-shoulder-press.webp"
+    },
+
+    "Seated Dumbell Overhead press": {
+        "name": "Seated Dumbell Overhead press",
+        "category": "push",
+        "pattern": "Vertical Push", 
+        "type": "polyarticulaire",
+        "primary_muscles": ["Epaules"],
+        "secondary_muscles": ["Triceps"],
+        "all_muscles": ["Epaules", "Triceps"],
+        "equipment": ["Dumbells","Bench"],
+    "image_path": "exercices2/dumbell_bench_press.png"
     },
     
     "Incline press": {
@@ -54,7 +111,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": ["Epaules", "Triceps"],
         "all_muscles": ["Pectoraux", "Epaules", "Triceps"],
         "equipment": "Barbell",
-        "difficulty": "intermediate",
     "image_path": "images/jpg2png-2/incline_press_1.png"
     },
     
@@ -62,26 +118,49 @@ EXERCISE_DATABASE = {
     "Lateral raises": {
         "name": "Lateral raises",
         "category": "push",
-        "pattern": "Lateral Raise",
+        "pattern": "Side Raise",
         "type": "isolation",
         "primary_muscles": ["Epaules"],
-        "secondary_muscles": [],
-        "all_muscles": ["Epaules"],
+        "secondary_muscles": ["Trapèzes"],
+        "all_muscles": ["Epaules", "Trapèzes"],
         "equipment": "Dumbbells",
-        "difficulty": "beginner",
     "image_path": "images/jpg2png-2/jpg2png-3/lateral raises.png"
     },
     
+    "Cable Lateral raises": {
+        "name": "Lateral raises",
+        "category": "push",
+        "pattern": "Side Raise",
+        "type": "isolation",
+        "primary_muscles": ["Epaules"],
+        "secondary_muscles": ["Trapèzes"],
+        "all_muscles": ["Epaules", "Trapèzes"],
+        "equipment": "cable station",
+    "image_path": "exercices2/cable_lr.png"
+    },
+    
+    "Y raise": {
+        "name": "Y raise",
+        "category": "push",
+        "pattern": "Frontal Raise",
+        "type": "isolation",
+        "primary_muscles": ["Epaules", "Trapèzes"],
+        "secondary_muscles": [],
+        "all_muscles": ["Epaules", "Trapèzes"],
+        "equipment": ["Dumbbells", "Bench"],
+    "image_path": "exercices2/Y_raise.png"
+    },
+    
+
     "Front raise": {
         "name": "Front raise", 
         "category": "push",
-        "pattern": "Lateral Raise",
+        "pattern": "Frontal Raise",
         "type": "isolation",
         "primary_muscles": ["Epaules"],
-        "secondary_muscles": [],
-        "all_muscles": ["Epaules"],
+        "secondary_muscles": ["Pectoraux"],
+        "all_muscles": ["Epaules", "Pectoraux"],
         "equipment": "Dumbbells", 
-        "difficulty": "beginner",
     "image_path": "images/jpg2png-2/front raises.png"
     },
     
@@ -93,10 +172,22 @@ EXERCISE_DATABASE = {
         "primary_muscles": ["Epaules"],
         "secondary_muscles": [],
         "all_muscles": ["Epaules"],
-        "equipment": "Dumbbells",
-        "difficulty": "beginner", 
+        "equipment": "Dumbbells", 
     "image_path": "images/jpg2png-2/jpg2png-3/rear delt fly.png"
     },
+
+    "Face pulls": {
+        "name": "Face pulls",
+        "category": "pull", 
+        "pattern": "Rear Delt",
+        "type": "isolation",
+        "primary_muscles": ["Epaules"],
+        "secondary_muscles": ["Trapèzes"],
+        "all_muscles": ["Epaules", "Trapèzes"],
+        "equipment": "cable station", 
+    "image_path": "exercices2/face_pull.png"
+    },
+    
     
     "Pushdown": {
         "name": "Pushdown",
@@ -107,8 +198,19 @@ EXERCISE_DATABASE = {
         "secondary_muscles": [],
         "all_muscles": ["Triceps"],
         "equipment": "Cable",
-        "difficulty": "beginner",
     "image_path": "images/jpg2png-2/jpg2png-3/pushdown.png"
+    },
+
+    "Skull crushers": {
+        "name": "Skull crushers",
+        "category": "push",
+        "pattern": "Tricep Extension", 
+        "type": "isolation",
+        "primary_muscles": ["Triceps"],
+        "secondary_muscles": [],
+        "all_muscles": ["Triceps"],
+        "equipment": ["Bench", "Dumbbels"],
+    "image_path": "exercices2/skull_crusher.png"
     },
     
     "Tricep extension": {
@@ -120,7 +222,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": [],
         "all_muscles": ["Triceps"],
         "equipment": "Dumbbells",
-        "difficulty": "beginner",
     "image_path": "images/jpg2png-2/extension tricep.png"
     },
     
@@ -133,8 +234,7 @@ EXERCISE_DATABASE = {
         "primary_muscles": ["Dorsaux"],
         "secondary_muscles": ["Biceps", "Epaules"],
         "all_muscles": ["Dorsaux", "Biceps", "Epaules"],
-        "equipment": "Barbell",
-        "difficulty": "intermediate", 
+        "equipment": "Barbell", 
     "image_path": "images/jpg2png-2/bent_over_row_1.png"
     },
     
@@ -147,7 +247,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": ["Biceps"],
         "all_muscles": ["Dorsaux", "Biceps"],
         "equipment": "Machine",
-        "difficulty": "beginner",
     "image_path": "images/jpg2png-2/jpg2png-3/machine row.png"
     },
     
@@ -161,8 +260,19 @@ EXERCISE_DATABASE = {
         "secondary_muscles": ["Biceps"],
         "all_muscles": ["Dorsaux", "Biceps"],
         "equipment": "Bodyweight",
-        "difficulty": "advanced",
     "image_path": "images/jpg2png-2/jpg2png-3/pull_up_1.png"
+    },
+
+    "Lat Pulldown": {
+        "name": "Lat Pulldown",
+        "category": "pull",
+        "pattern": "Vertical Pull",
+        "type": "polyarticulaire",
+        "primary_muscles": ["Dorsaux"],
+        "secondary_muscles": ["Biceps"],
+        "all_muscles": ["Dorsaux", "Biceps"],
+        "equipment": "Lat Pulldown Machine",
+    "image_path": "exercices2/lat_pulldown.png"
     },
     
     "Chin up": {
@@ -174,7 +284,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": ["Biceps"],
         "all_muscles": ["Dorsaux", "Biceps"],
         "equipment": "Bodyweight",
-        "difficulty": "advanced",
     "image_path": "images/jpg2png-2/chin_up_1.png"
     },
     
@@ -188,10 +297,21 @@ EXERCISE_DATABASE = {
         "secondary_muscles": [],
         "all_muscles": ["Biceps"],
         "equipment": "Dumbbells",
-        "difficulty": "beginner",
     "image_path": "images/jpg2png-2/curl.png"
     },
     
+    "Cable Curl": {
+        "name": "Cable Curl",
+        "category": "pull",
+        "pattern": "Bicep Curl",
+        "type": "isolation",
+        "primary_muscles": ["Biceps"],
+        "secondary_muscles": [],
+        "all_muscles": ["Biceps"],
+        "equipment": "Cable station",
+    "image_path": "exercices2/cable_curl.png"
+    },
+
     "Hammer curl": {
         "name": "Hammer curl",
         "category": "pull", 
@@ -201,7 +321,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": [],
         "all_muscles": ["Biceps"],
         "equipment": "Dumbbells",
-        "difficulty": "beginner",
     "image_path": "images/jpg2png-2/hammercurl.png"
     },
     
@@ -213,8 +332,7 @@ EXERCISE_DATABASE = {
         "primary_muscles": ["Biceps"],
         "secondary_muscles": [],
         "all_muscles": ["Biceps"],
-        "equipment": "Barbell",
-        "difficulty": "beginner", 
+        "equipment": "Barbell", 
     "image_path": "images/jpg2png-2/jpg2png-3/preachercurl.png"
     },
     
@@ -228,8 +346,19 @@ EXERCISE_DATABASE = {
         "secondary_muscles": ["Fessiers", "Lombaires"],
         "all_muscles": ["Quadriceps", "Fessiers", "Lombaires"],
         "equipment": "Barbell",
-        "difficulty": "intermediate",
     "image_path": "images/jpg2png-2/barbell_squat_1.png"
+    },
+
+    "Hack squat": {
+        "name": "Hack squat",
+        "category": "legs",
+        "pattern": "Squat",
+        "type": "polyarticulaire",
+        "primary_muscles": ["Quadriceps"],
+        "secondary_muscles": ["Fessiers"],
+        "all_muscles": ["Quadriceps", "Fessiers"],
+        "equipment": "Hack squat machine",
+    "image_path": "exercices2/hack_squat.png"
     },
     
     "Bulgarian split squat": {
@@ -240,8 +369,7 @@ EXERCISE_DATABASE = {
         "primary_muscles": ["Quadriceps"],
         "secondary_muscles": ["Fessiers"],
         "all_muscles": ["Quadriceps", "Fessiers"],
-        "equipment": "Bodyweight",
-        "difficulty": "intermediate",
+        "equipment": ["Bodyweight" "Dumbbels"],
     "image_path": "images/jpg2png-2/bulgarian_split_squat_1.png"
     },
     
@@ -255,7 +383,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": ["Fessiers", "Lombaires"],
         "all_muscles": ["Isquios-jambiers", "Fessiers", "Lombaires"],
         "equipment": "Barbell",
-        "difficulty": "intermediate",
     "image_path": "images/jpg2png-2/jpg2png-3/SLDL_1.png"
     },
     
@@ -268,7 +395,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": ["Isquios-jambiers", "Fessiers"],
         "all_muscles": ["Lombaires", "Isquios-jambiers", "Fessiers"],
         "equipment": "Machine",
-        "difficulty": "beginner",
     "image_path": "images/jpg2png-2/back_hyper.png"
     },
     
@@ -282,7 +408,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": [],
         "all_muscles": ["Quadriceps"],
         "equipment": "Machine",
-        "difficulty": "beginner",
     "image_path": "images/jpg2png-2/jpg2png-3/legextension.png"
     },
     
@@ -295,7 +420,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": [],
         "all_muscles": ["Quadriceps"],
         "equipment": "Bodyweight",
-        "difficulty": "advanced",
     "image_path": "images/jpg2png-2/jpg2png-3/sissysquat.png"
     },
     
@@ -308,7 +432,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": [],
         "all_muscles": ["Isquios-jambiers"],
         "equipment": "Machine", 
-        "difficulty": "beginner",
     "image_path": "images/jpg2png-2/jpg2png-3/seatedlegcurl.png"
     },
     
@@ -321,7 +444,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": [],
         "all_muscles": ["Isquios-jambiers"],
         "equipment": "Bodyweight",
-        "difficulty": "advanced",
     "image_path": "images/jpg2png-2/jpg2png-3/nordic_curl.png"
     },
     
@@ -335,7 +457,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": [],
         "all_muscles": ["Abdominaux"],
         "equipment": "Machine",
-        "difficulty": "beginner",
     "image_path": "images/jpg2png-2/jpg2png-3/machinecrunch.png"
     },
     
@@ -348,7 +469,6 @@ EXERCISE_DATABASE = {
         "secondary_muscles": [],
         "all_muscles": ["Abdominaux"],
         "equipment": "Bodyweight", 
-        "difficulty": "intermediate",
     "image_path": "images/jpg2png-2/hanginglegraises.png"
     }
 }
