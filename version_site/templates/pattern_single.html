@@ -7,13 +7,41 @@
   <style>
     .center { text-align:center; margin-top:20px; }
     .exercise-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:14px; align-items:start; max-width:980px; margin: 0 auto; }
-    .exercise { box-sizing:border-box; padding:8px; text-align:center; border-radius:8px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .exercise { box-sizing:border-box; padding:8px; text-align:center; border-radius:8px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.06); cursor: pointer; transition: all 0.2s; }
+    .exercise:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
     img.thumb { width:100%; height:140px; object-fit:cover; border-radius:6px; display:block; margin: 0 auto 8px; }
     .note { font-size:0.9em; color:#666 }
     .exercise.selected { outline: 3px solid #0072CE; background:#E8F4FD }
     .badge { position:relative; display:inline-block; }
     .badge .count { position:absolute; top:6px; right:6px; background:#0072CE; color:#fff; font-weight:700; border-radius:10px; padding:2px 6px; font-size:12px; }
     .counter { margin-top:12px; font-weight:600 }
+    .validate-btn { 
+      display: inline-block;
+      margin-top: 20px;
+      padding: 12px 32px;
+      background: #0072CE;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 2px 4px rgba(0,114,206,0.2);
+    }
+    .validate-btn:hover { 
+      background: #005AA3;
+      box-shadow: 0 4px 8px rgba(0,114,206,0.3);
+      transform: translateY(-1px);
+    }
+    .validate-btn:active {
+      transform: translateY(0);
+    }
+    .validate-btn:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
   </style>
 </head>
 <body>
@@ -28,7 +56,7 @@
 
     <div class="card">
       <h2 class="center">{{ pattern_name }}</h2>
-      <p class="note center">Choisissez jusqu'à 2 exercices pour ce pattern</p>
+      <p class="note center">Choisissez 1 ou 2 exercices pour ce pattern</p>
       <form method="post">
         <div class="exercise-grid">
       {% for name, path in exercises %}
@@ -50,12 +78,17 @@
 
         <div style="clear:both"></div>
         <div class="counter center">Sélections: <span id="click-count">0</span>/2</div>
+        
+        <div class="center">
+          <button type="submit" class="validate-btn" id="validate-btn" disabled>Valider</button>
+        </div>
 
-      <!-- JS to register clicks (allows clicking the same exercise twice) and auto-submit after 2 selections -->
+      <!-- JS to register clicks (allows choosing 1 or 2 exercises, then validate with button) -->
       <script>
         document.addEventListener('DOMContentLoaded', function () {
           const form = document.querySelector('form');
           const exerciseEls = Array.from(document.querySelectorAll('.exercise'));
+          const validateBtn = document.getElementById('validate-btn');
           let clickCount = 0;
           let lastClickTime = 0;
           const hiddenContainer = document.createElement('div');
@@ -64,17 +97,28 @@
 
           const counterDisplay = document.getElementById('click-count');
 
+          function updateValidateButton() {
+            // Enable button if at least 1 exercise is selected
+            if (clickCount >= 1 && clickCount <= 2) {
+              validateBtn.disabled = false;
+            } else {
+              validateBtn.disabled = true;
+            }
+          }
+
           function updateBadge(el, count) {
             const badge = el.querySelector('.count');
             if (!badge) return;
             badge.textContent = count;
             badge.style.display = count > 0 ? 'inline-block' : 'none';
-            if (count > 0) el.classList.add('selected');
+            if (count > 0) {
+              el.classList.add('selected');
+            } else {
+              el.classList.remove('selected');
+            }
 
             // trigger a pulse animation on the badge when it changes
-            // restart animation by removing and re-adding the class
             badge.classList.remove('pulse');
-            // force reflow so the animation restarts
             void badge.offsetWidth;
             badge.classList.add('pulse');
             badge.addEventListener('animationend', function () { badge.classList.remove('pulse'); }, { once: true });
@@ -92,6 +136,11 @@
               }
               lastClickTime = now;
 
+              // Don't allow more than 2 total clicks
+              if (clickCount >= 2) {
+                return;
+              }
+
               // append hidden input to record this click (keeps duplicates)
               const input = document.createElement('input');
               input.type = 'hidden';
@@ -103,18 +152,20 @@
               counterDisplay.textContent = clickCount;
 
               // update badge count for this element
-            const badge = el.querySelector('.count');
-            const current = parseInt(badge.textContent || '0', 10) + 1;
-            updateBadge(el, current);
+              const badge = el.querySelector('.count');
+              const current = parseInt(badge.textContent || '0', 10) + 1;
+              updateBadge(el, current);
 
-              // disable further clicks if we've reached 2 (prevent accidental extra clicks)
-              if (clickCount >= 2) {
-                // small delay to allow UI update, then submit
-                setTimeout(function () { form.submit(); }, 120);
-                // also disable pointer events to avoid more clicks
-                exerciseEls.forEach(function(x){ x.style.pointerEvents = 'none'; });
-              }
+              // Update validate button state
+              updateValidateButton();
             });
+          });
+
+          // Prevent form submission on Enter key (only allow button click)
+          form.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+            }
           });
         });
       </script>
