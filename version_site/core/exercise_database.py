@@ -99,7 +99,7 @@ EXERCISE_DATABASE = {
         "secondary_muscles": ["Triceps"],
         "all_muscles": ["Epaules", "Triceps"],
         "equipment": ["Dumbells","Bench"],
-    "image_path": "exercices2/dumbell_bench_press.png"
+    "image_path": "exercices2/dumbbell-seated-shoulder-press.webp"
     },
     
     "Incline press": {
@@ -286,7 +286,31 @@ EXERCISE_DATABASE = {
         "equipment": "Bodyweight",
     "image_path": "images/jpg2png-2/chin_up_1.png"
     },
+
+    "Inverted Rows": {
+        "name": "Inverted Rows", 
+        "category": "pull",
+        "pattern": "Horizontal Pull",
+        "type": "polyarticulaire",
+        "primary_muscles": ["Dorsaux"],
+        "secondary_muscles": ["Biceps"],
+        "all_muscles": ["Dorsaux", "Biceps"],
+        "equipment": "Bodyweight",
+    "image_path": "exercices2/exercice3/https-welltechdev-wpengine-com-wp-content-uploads-2022-08-inverted-rows-min-jpg.jpeg"
+    },
     
+    "Seal Rows": {
+        "name": "Seal Rows", 
+        "category": "pull",
+        "pattern": "Horizontal Pull",
+        "type": "polyarticulaire",
+        "primary_muscles": ["Dorsaux"],
+        "secondary_muscles": ["Biceps"],
+        "all_muscles": ["Dorsaux", "Biceps"],
+        "equipment": "Bodyweight",
+    "image_path": "exercices2/exercice3/https-welltechdev-wpengine-com-wp-content-uploads-2022-08-seal-row-min-jpg.jpeg"
+    },
+
     # PULL - Isolations
     "Curl": {
         "name": "Curl",
@@ -389,13 +413,50 @@ EXERCISE_DATABASE = {
     "Back hyperextension": {
         "name": "Back hyperextension",
         "category": "legs",
-        "pattern": "Hip Hinge",
+        "pattern": "Leg Curl",
         "type": "isolation",
         "primary_muscles": ["Lombaires"],
         "secondary_muscles": ["Isquios-jambiers", "Fessiers"],
         "all_muscles": ["Lombaires", "Isquios-jambiers", "Fessiers"],
         "equipment": "Machine",
     "image_path": "images/jpg2png-2/back_hyper.png"
+    },
+
+    "Laying leg curl": {
+        "name": "Laying leg curl",
+        "category": "legs",
+        "pattern": "Leg Curl",
+        "type": "isolation",
+        "primary_muscles":["Isquios-jambiers", "Fessiers"],
+        "secondary_muscles": ["Lombaires"],
+        "all_muscles": ["Lombaires", "Isquios-jambiers", "Fessiers"],
+        "equipment": "Machine",
+    "image_path": "exercices2/exercice3/05861101-Lever-Lying-Leg-Curl_Thighs_medium.png.webp"
+    },
+    
+    "Barbell Hip Thrust": {
+        "name": "Barbell Hip Thrust",
+        "category": "legs",
+        "pattern": "Hip Hinge",
+        "type": "polyarticulaire",
+        "primary_muscles":["Isquios-jambiers", "Fessiers"],
+        "secondary_muscles": ["Lombaires"],
+        "all_muscles": ["Lombaires", "Isquios-jambiers", "Fessiers"],
+        "equipment": "Barbell",
+    "image_path": "exercices2/exercice3/barbell-hip-thrust-resized.png.webp"
+    },
+
+
+    "Barbell Deadlift": {
+        "name": "Barbell Deadlift",
+        "category": "legs",
+        "pattern": "Hip Hinge",
+        "type": "isolation",
+        "primary_muscles":["Isquios-jambiers", "Fessiers"],
+        "secondary_muscles": ["Lombaires"],
+        "all_muscles": ["Lombaires", "Isquios-jambiers", "Fessiers"],
+        "equipment": "Barbell",
+    "image_path": "exercices2/exercice3/strongman-deadlift.webp"
     },
     
     # LEGS - Isolations
@@ -459,7 +520,20 @@ EXERCISE_DATABASE = {
         "equipment": "Machine",
     "image_path": "images/jpg2png-2/jpg2png-3/machinecrunch.png"
     },
+
+    "Sit ups": {
+        "name": "Sit ups",
+        "category": "core",
+        "pattern": "Abs",
+        "type": "isolation",
+        "primary_muscles": ["Abdominaux"],
+        "secondary_muscles": [],
+        "all_muscles": ["Abdominaux"],
+        "equipment": "Bodyweight",
+    "image_path": "exercices2/exercice3/dumbbell-sit-up.webp"
+    },
     
+
     "Hanging leg raises": {
         "name": "Hanging leg raises",
         "category": "core",
@@ -639,8 +713,8 @@ PATTERN_INTERFACE_NAMES = {
     "Leg Curl": "Hamstring isolation",
     "Bicep Curl": "Bicep isolation",
     "Tricep Extension": "Tricep isolation",
-    "Lateral Raise": "Delt isolation",
-    "Rear Delt": "Delt isolation"
+    "Lateral Raise": "Side Delt isolation",
+    "Rear Delt": " Rear delt isolation"
 }
 
 def get_interface_pattern_name(pattern):
