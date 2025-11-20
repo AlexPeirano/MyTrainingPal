@@ -1,17 +1,17 @@
-# 💪 Workout Program Generator
+# Workout Program Generator
 
 A smart workout program generator that creates personalized training splits based on your goals, available training days, and exercise preferences.
 
-## 🌐 Live Demo
+## Live Demo
 
-**[Try it live here!](https://mytrainingpal.onrender.com)** 🚀
+Try it live here: https://mytrainingpal.onrender.com
 
-## ✨ Features
+## Features
 
 - **Smart Split Selection**: Automatically chooses the best training split based on available days per week
-  - 2-3 days → Full Body
-  - 4-5 days → Upper/Lower
-  - 6 days → Push/Pull/Legs
+  - 2-3 days: Full Body
+  - 4-5 days: Upper/Lower
+  - 6 days: Push/Pull/Legs
 
 - **Personalized Volume**: Set different goals for each muscle group
   - Maintenance: 4-6 sets/week
@@ -26,14 +26,14 @@ A smart workout program generator that creates personalized training splits base
   - Respects movement pattern constraints (e.g., horizontal vs vertical push/pull)
   - Distributes volume evenly across the week
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Backend**: Flask (Python)
 - **Frontend**: HTML, CSS, JavaScript
 - **Deployment**: Render
 - **Version Control**: Git/GitHub
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 ├── version_site/          # Web application
@@ -47,7 +47,7 @@ A smart workout program generator that creates personalized training splits base
 └── version_kivy/        # Mobile version (Kivy)
 ```
 
-## 🚀 Local Development
+## Local Development
 
 1. Clone the repository:
 ```bash
@@ -67,7 +67,7 @@ python app.py
 
 4. Open your browser to `http://localhost:5001`
 
-## 📝 How It Works
+## How It Works
 
 1. **Choose your training frequency** (2-6 days per week)
 2. **Select exercises** for each muscle group from the database
@@ -80,14 +80,14 @@ The program uses intelligent algorithms to:
 - Ensure proper exercise variety and movement patterns
 - Adjust sets and reps to hit precise volume targets
 
-## 🤝 Contributing
+## Contributing
 
-Feel free to open issues or submit pull requests!
+Feel free to open issues or submit pull requests.
 
-## 📄 License
+## License
 
 This project is open source and available under the MIT License.
 
 ---
 
-**Made with 💪 by Alex Peirano**
+Made by Alex Peirano
