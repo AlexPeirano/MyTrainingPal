@@ -403,8 +403,8 @@ EXERCISE_DATABASE = {
         "category": "legs",
         "pattern": "Hip Hinge",
         "type": "polyarticulaire", 
-        "primary_muscles": ["Isquios-jambiers"],
-        "secondary_muscles": ["Fessiers", "Lombaires"],
+        "primary_muscles": ["Isquios-jambiers", "Fessiers", "Lombaires"],
+        "secondary_muscles": [],
         "all_muscles": ["Isquios-jambiers", "Fessiers", "Lombaires"],
         "equipment": "Barbell",
     "image_path": "images/jpg2png-2/jpg2png-3/SLDL_1.png"
@@ -415,8 +415,8 @@ EXERCISE_DATABASE = {
         "category": "legs",
         "pattern": "Leg Curl",
         "type": "isolation",
-        "primary_muscles": ["Lombaires"],
-        "secondary_muscles": ["Isquios-jambiers", "Fessiers"],
+        "primary_muscles": ["Isquios-jambiers", "Lombaires"],
+        "secondary_muscles": ["Fessiers"],
         "all_muscles": ["Lombaires", "Isquios-jambiers", "Fessiers"],
         "equipment": "Machine",
     "image_path": "images/jpg2png-2/back_hyper.png"
@@ -452,8 +452,8 @@ EXERCISE_DATABASE = {
         "category": "legs",
         "pattern": "Hip Hinge",
         "type": "isolation",
-        "primary_muscles":["Isquios-jambiers", "Fessiers"],
-        "secondary_muscles": ["Lombaires"],
+        "primary_muscles":["Isquios-jambiers", "Fessiers", "Lombaires"],
+        "secondary_muscles": [],
         "all_muscles": ["Lombaires", "Isquios-jambiers", "Fessiers"],
         "equipment": "Barbell",
     "image_path": "exercices2/exercice3/strongman-deadlift.webp"

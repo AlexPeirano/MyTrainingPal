@@ -88,21 +88,36 @@ def media(path):
 
 @app.route('/', methods=['GET'])
 def index():
-    # Landing page: clear any stale session state and redirect to muscle selection
+    # Landing page: clear any stale session state and redirect to level selection
     # This ensures opening the app always starts a fresh flow instead of
     # immediately jumping to later pages when an old session cookie exists.
-    for key in ('muscle_index', 'muscle_goals', 'pattern_index', 'selected_per_pattern', 'selected_exercises'):
+    for key in ('level', 'muscle_index', 'muscle_goals', 'pattern_index', 'selected_per_pattern', 'selected_exercises'):
         session.pop(key, None)
-    return redirect(url_for('muscles'))
+    return redirect(url_for('level_selection'))
+
+
+@app.route('/level', methods=['GET', 'POST'])
+def level_selection():
+    """Select training level: beginner or advanced"""
+    if request.method == 'POST':
+        level = request.form.get('level')
+        if level in ('beginner', 'advanced'):
+            session['level'] = level
+            app.logger.info('LEVEL: selected %s', level)
+            return redirect(url_for('muscles'))
+        else:
+            abort(400)
+    
+    return render_template('level_selection.html')
 
 
 @app.route('/reset', methods=['GET'])
 def reset():
     """Clear selection session state and restart the flow."""
-    for key in ('muscle_index', 'muscle_goals', 'pattern_index', 'selected_per_pattern', 'selected_exercises'):
+    for key in ('level', 'muscle_index', 'muscle_goals', 'pattern_index', 'selected_per_pattern', 'selected_exercises'):
         session.pop(key, None)
     app.logger.info('RESET: session cleared')
-    return redirect(url_for('muscles'))
+    return redirect(url_for('level_selection'))
 
 
 @app.route('/muscles', methods=['GET', 'POST'])
@@ -240,9 +255,10 @@ def generate():
 
     objectifs = session.get('muscle_goals', {})
     selected = session.get('selected_exercises', [])
+    level = session.get('level', 'advanced')  # Default to advanced if not set
 
     # create_complete_program returns a tuple (programme_by_session, split_name, sessions_order)
-    programme_by_session, split_name, sessions_order = create_complete_program(days, objectifs, selected)
+    programme_by_session, split_name, sessions_order = create_complete_program(days, objectifs, selected, level)
     # optional client-side dedupe flag: only enable dedupe script when explicitly requested
     dedupe_flag = bool(request.args.get('dedupe') in ('1', 'true', 'yes'))
     # Log the raw programme for debugging duplicates seen in UI
@@ -282,7 +298,8 @@ def program_json():
         days = 3
     objectifs = session.get('muscle_goals', {})
     selected = session.get('selected_exercises', [])
-    programme_by_session, split_name, sessions_order = create_complete_program(days, objectifs, selected)
+    level = session.get('level', 'advanced')  # Default to advanced if not set
+    programme_by_session, split_name, sessions_order = create_complete_program(days, objectifs, selected, level)
     return jsonify({
         'programme_by_session': programme_by_session,
         'split_name': split_name,
