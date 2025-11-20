@@ -83,27 +83,29 @@
           <button type="submit" class="validate-btn" id="validate-btn" disabled>Valider</button>
         </div>
 
-      <!-- JS to register clicks (allows choosing 1 or 2 exercises, then validate with button) -->
+      <!-- JS to register clicks (allows choosing 1 or 2 exercises, click again to deselect) -->
       <script>
         document.addEventListener('DOMContentLoaded', function () {
           const form = document.querySelector('form');
           const exerciseEls = Array.from(document.querySelectorAll('.exercise'));
           const validateBtn = document.getElementById('validate-btn');
-          let clickCount = 0;
-          let lastClickTime = 0;
           const hiddenContainer = document.createElement('div');
           hiddenContainer.style.display = 'none';
           form.appendChild(hiddenContainer);
 
           const counterDisplay = document.getElementById('click-count');
+          
+          // Track selection count for each exercise by index
+          const selectionCounts = {};
+
+          function getTotalSelections() {
+            return Object.values(selectionCounts).reduce((sum, count) => sum + count, 0);
+          }
 
           function updateValidateButton() {
             // Enable button if at least 1 exercise is selected
-            if (clickCount >= 1 && clickCount <= 2) {
-              validateBtn.disabled = false;
-            } else {
-              validateBtn.disabled = true;
-            }
+            const total = getTotalSelections();
+            validateBtn.disabled = total < 1 || total > 2;
           }
 
           function updateBadge(el, count) {
@@ -124,39 +126,52 @@
             badge.addEventListener('animationend', function () { badge.classList.remove('pulse'); }, { once: true });
           }
 
+          function updateHiddenInputs() {
+            // Clear all hidden inputs
+            hiddenContainer.innerHTML = '';
+            
+            // Add hidden inputs for each selection
+            for (const [idx, count] of Object.entries(selectionCounts)) {
+              for (let i = 0; i < count; i++) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'chosen';
+                input.value = idx;
+                hiddenContainer.appendChild(input);
+              }
+            }
+          }
+
           exerciseEls.forEach(function (el) {
             const idx = el.getAttribute('data-idx');
+            selectionCounts[idx] = 0;
+            
             el.style.cursor = 'pointer';
             el.addEventListener('click', function (e) {
-              const now = Date.now();
-              // ignore accidental immediate double events (<150ms)
-              if (now - lastClickTime < 150) {
-                lastClickTime = now;
+              const currentCount = selectionCounts[idx];
+              const totalSelections = getTotalSelections();
+
+              // If clicking on already selected exercise, deselect it
+              if (currentCount > 0) {
+                selectionCounts[idx] = 0;
+              } 
+              // If we haven't reached the limit, allow selection
+              else if (totalSelections < 2) {
+                selectionCounts[idx] = 1;
+              }
+              // If at limit, don't do anything
+              else {
                 return;
               }
-              lastClickTime = now;
 
-              // Don't allow more than 2 total clicks
-              if (clickCount >= 2) {
-                return;
-              }
-
-              // append hidden input to record this click (keeps duplicates)
-              const input = document.createElement('input');
-              input.type = 'hidden';
-              input.name = 'chosen';
-              input.value = idx;
-              hiddenContainer.appendChild(input);
-
-              clickCount += 1;
-              counterDisplay.textContent = clickCount;
-
-              // update badge count for this element
-              const badge = el.querySelector('.count');
-              const current = parseInt(badge.textContent || '0', 10) + 1;
-              updateBadge(el, current);
-
-              // Update validate button state
+              // Update UI
+              const newCount = selectionCounts[idx];
+              updateBadge(el, newCount);
+              
+              const total = getTotalSelections();
+              counterDisplay.textContent = total;
+              
+              updateHiddenInputs();
               updateValidateButton();
             });
           });
