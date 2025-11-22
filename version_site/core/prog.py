@@ -1,806 +1,786 @@
 """
-Générateur de programme d'entraînement basé sur une philosophie stricte :
-1. Split selon jours : 2-3j=Full Body, 4-5j=Upper/Lower, 6j=Push/Pull/Legs
-2. Volume hebdomadaire exact selon priorité et niveau (débutant vs avancé)
-3. Les exercices peuvent être répétés plusieurs fois/semaine pour atteindre le volume
-4. Le volume total est identique quel que soit le nb de jours (dépend uniquement du choix utilisateur)
-5. Exercices répartis par ordre de priorité (polyarticulaires en premier)
-6. Volume réparti uniformément entre les séances
-7. Full Body : seulement UN tirage OU UN push par séance (pas horiz + vert)
-8. N'utiliser que les exercices nécessaires pour atteindre le volume
+Algorithme de génération de programme d'entraînement avec compteur de volume strict.
+
+Règles :
+1) Débutants : maintenance=3, normal=6, prioritised=9 séries/semaine
+   - Tout en poly sauf prioritised (ajoute iso) et biceps/triceps/épaules (iso autorisée)
+2) Avancés : maintenance=6, normal=9, prioritised=12 séries/semaine
+   - Maintenance: que du poly
+   - Normal: 6 poly + 3 iso
+   - Prioritised: 6 poly + 6 iso
+   - Biceps/triceps/épaules: iso autorisée
+3) Split : 2-3j=Full Body, 4-5j=Upper/Lower, 6j=Push/Pull/Legs
+4) Tous les exercices choisis ne sont pas forcément utilisés
+5) Volume uniformément réparti sur la semaine
+6) Un exercice = UNE SEULE ligne par séance avec ses séries
+7) Poly avant iso dans l'affichage
 """
-from version_site.core.exercise_database import get_exercise_info
 
+from collections import defaultdict
+from typing import Dict, List, Literal, Tuple, Set
 
-# Volumes d'entraînement hebdomadaires selon objectif et niveau
-VOLUME_OBJECTIFS = {
+from .exercise_database import get_exercise_info, get_exercises_by_muscle
+
+Level = Literal["beginner", "advanced"]
+Objectif = Literal["maintenance", "normal_growth", "prioritised_growth"]
+
+# Volumes hebdomadaires par muscle
+VOLUME_OBJECTIFS: Dict[Level, Dict[Objectif, int]] = {
     "beginner": {
-        "maintenance": [3],
-        "normal_growth": [6],
-        "prioritised_growth": [9]
+        "maintenance": 3,
+        "normal_growth": 6,
+        "prioritised_growth": 9,
     },
     "advanced": {
-        "maintenance": [4, 5, 6],
-        "normal_growth": [7, 8, 9, 10],
-        "prioritised_growth": [11, 12, 13]
-    }
+        "maintenance": 6,
+        "normal_growth": 9,
+        "prioritised_growth": 12,
+    },
 }
 
 
 class Split:
-    """Définit les splits d'entraînement"""
-    def __init__(self, name, sessions):
+    def __init__(self, name: str, sessions: Dict[str, List[str]]):
         self.name = name
-        self.sessions = sessions
+        self.sessions = sessions  # { "session_A": ["Pectoraux", ...], ... }
 
 
-def create_prog(nb_jours):
-    """Crée le split approprié selon le nombre de jours"""
-    if nb_jours in [2, 3]:
-        return Split("Full Body", {
-            "session_A": ["Pectoraux", "Epaules", "Dorsaux", "Biceps", "Triceps", 
-                         "Abdominaux", "Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires"],
-            "session_B": ["Pectoraux", "Epaules", "Dorsaux", "Biceps", "Triceps", 
-                         "Abdominaux", "Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires"],
-            "session_C": ["Pectoraux", "Epaules", "Dorsaux", "Biceps", "Triceps", 
-                         "Abdominaux", "Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires"]
-        })
-    elif nb_jours in [4, 5]:
-        return Split("Upper/Lower", {
+# ---------- 0. Définition du split en fonction du nombre de jours ----------
+
+def create_prog(nb_jours: int) -> Split:
+    """
+    Choix du format :
+       - 2 ou 3 jours -> Full Body
+       - 4 ou 5 jours -> Upper / Lower
+       - 6 jours      -> Push / Pull / Legs
+    """
+    # Full Body : même template, on tronque simplement le nb de séances à nb_jours
+    if nb_jours in (2, 3):
+        fb_sessions = {
+            "session_A": ["Pectoraux", "Epaules", "Dorsaux", "Biceps", "Triceps",
+                          "Abdominaux", "Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires"],
+            "session_B": ["Pectoraux", "Epaules", "Dorsaux", "Biceps", "Triceps",
+                          "Abdominaux", "Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires"],
+            "session_C": ["Pectoraux", "Epaules", "Dorsaux", "Biceps", "Triceps",
+                          "Abdominaux", "Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires"],
+        }
+        return Split("Full Body", fb_sessions)
+
+    # Upper / Lower
+    if nb_jours in (4, 5):
+        ul_sessions = {
             "upper_A": ["Pectoraux", "Epaules", "Dorsaux", "Biceps", "Triceps", "Abdominaux"],
-            "lower_A": ["Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires"],
+            "lower_A": ["Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires", "Abdominaux"],
             "upper_B": ["Pectoraux", "Epaules", "Dorsaux", "Biceps", "Triceps", "Abdominaux"],
-            "lower_B": ["Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires"]
-        })
-    elif nb_jours == 6:
-        return Split("Push/Pull/Legs", {
-            "push_A": ["Pectoraux", "Epaules", "Triceps", "Abdominaux"],
-            "pull_A": ["Dorsaux", "Biceps"],
-            "legs_A": ["Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires"],
-            "push_B": ["Pectoraux", "Epaules", "Triceps", "Abdominaux"],
-            "pull_B": ["Dorsaux", "Biceps"],
-            "legs_B": ["Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires"]
-        })
-    else:
-        raise ValueError(f"Nombre de jours non supporté: {nb_jours}")
+            "lower_B": ["Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires", "Abdominaux"],
+            "upper_C": ["Pectoraux", "Epaules", "Dorsaux", "Biceps", "Triceps", "Abdominaux"],
+        }
+        return Split("Upper/Lower", ul_sessions)
+
+    # Push / Pull / Legs (6 jours)
+    ppl_sessions = {
+        "push_A": ["Pectoraux", "Epaules", "Triceps", "Abdominaux"],
+        "pull_A": ["Dorsaux", "Biceps", "Epaules", "Lombaires", "Abdominaux"],
+        "legs_A": ["Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires", "Abdominaux"],
+        "push_B": ["Pectoraux", "Epaules", "Triceps", "Abdominaux"],
+        "pull_B": ["Dorsaux", "Biceps", "Epaules", "Lombaires", "Abdominaux"],
+        "legs_B": ["Quadriceps", "Isquios-jambiers", "Fessiers", "Lombaires", "Abdominaux"],
+    }
+    return Split("Push/Pull/Legs", ppl_sessions)
 
 
-def trier_exercices_par_priorite(exercices_choisis):
-    """Trie les exercices par ordre de priorité : polys jambes, polys haut, isolations"""
-    polys_jambes = []
-    polys_haut = []
-    isolations = []
+# ---------- 1. Cibles de volume par muscle : total, poly, iso ----------
+
+def compute_muscle_targets(objectifs_muscles: Dict[str, Objectif],
+                           level: Level) -> Dict[str, Dict[str, int]]:
+    """
+    Pour chaque muscle, calcule :
+      - total : séries hebdo
+      - poly  : séries à faire avec des poly
+      - iso   : séries à faire avec des isolations
+    """
+    targets: Dict[str, Dict[str, int]] = {}
+    for muscle, objectif in objectifs_muscles.items():
+        total = VOLUME_OBJECTIFS[level][objectif]
+        poly = 0
+        iso = 0
+
+        if level == "beginner":
+            if objectif == "prioritised_growth":
+                # On force au moins quelques séries d'iso pour priorisé
+                iso = min(3, total) if total >= 3 else 1
+                poly = max(0, total - iso)
+            else:
+                # maintenance / normal : tout en poly par défaut
+                poly = total
+                iso = 0
+        else:  # advanced
+            if objectif == "maintenance":
+                poly = total
+                iso = 0
+            elif objectif == "normal_growth":
+                # 6 poly, 3 iso (ou adapté si total < 9)
+                poly = min(6, total)
+                iso = max(0, total - poly)
+            elif objectif == "prioritised_growth":
+                # 6 poly, 6 iso si possible, sinon proportion
+                if total >= 12:
+                    poly = 6
+                    iso = 6
+                else:
+                    poly = total // 2
+                    iso = total - poly
+
+        targets[muscle] = {"total": total, "poly": poly, "iso": iso}
+    return targets
+
+
+# ---------- 2. Construction des pools d'exercices ----------
+
+def build_exercise_pools(exercices_choisis: List[str],
+                         objectifs_muscles: Dict[str, Objectif],
+                         level: Level):
+    """
+    Construit pour chaque muscle :
+      pools[muscle]["poly"] = [liste d'exos poly]
+      pools[muscle]["iso"] = [liste d'exos d'isolation]
+    Retourne aussi un mapping pattern -> liste d'exos poly choisis.
+    
+    IMPORTANT: Trier les exercices par spécificité (un seul muscle ciblé d'abord).
+    """
+    pools: Dict[str, Dict[str, List[str]]] = defaultdict(lambda: {"poly": [], "iso": []})
+    pattern_to_poly_exos: Dict[str, List[str]] = defaultdict(list)
+
+    # Si aucun exercice choisi, charger tous les exercices disponibles pour chaque muscle
+    if not exercices_choisis:
+        exercices_choisis = []
+        for muscle in objectifs_muscles.keys():
+            exercices_choisis.extend(get_exercises_by_muscle(muscle))
+        # Dédupliquer
+        exercices_choisis = list(set(exercices_choisis))
+
+    # Collecter les exercices
+    temp_pools = defaultdict(lambda: {"poly": [], "iso": []})
     
     for exo_name in exercices_choisis:
         info = get_exercise_info(exo_name)
         if not info:
             continue
-        
-        if info['type'] == 'polyarticulaire':
-            if info['category'] == 'legs':
-                polys_jambes.append(exo_name)
+        exo_type = info.get("type", "polyarticulaire")
+        pattern = info.get("pattern", None)
+
+        if exo_type == "polyarticulaire" and pattern:
+            pattern_to_poly_exos[pattern].append(exo_name)
+
+        # Utiliser primary_muscles pour éviter le double comptage des volumes
+        for muscle in info.get("primary_muscles", []):
+            if exo_type == "polyarticulaire":
+                if exo_name not in temp_pools[muscle]["poly"]:
+                    temp_pools[muscle]["poly"].append(exo_name)
             else:
-                polys_haut.append(exo_name)
-        else:
-            isolations.append(exo_name)
+                if exo_name not in temp_pools[muscle]["iso"]:
+                    temp_pools[muscle]["iso"].append(exo_name)
     
-    return polys_jambes + polys_haut + isolations
-
-
-def calculer_volume_hebdomadaire(objectifs_muscles, level="advanced"):
-    """Calcule le volume hebdomadaire cible pour chaque muscle selon le niveau"""
-    volumes = {}
-    for muscle, objectif in objectifs_muscles.items():
-        volume_range = VOLUME_OBJECTIFS[level][objectif]
-        volumes[muscle] = volume_range[len(volume_range) // 2]
-    return volumes
-
-
-def selectionner_exercices_necessaires(exercices_choisis, volumes_hebdo, split, level="advanced"):
-    """Sélectionne uniquement les exercices NÉCESSAIRES pour atteindre EXACTEMENT le volume cible
-    
-    NOUVELLE APPROCHE GLOBALE :
-    - Alloue chaque exercice UNE SEULE FOIS (pas de doublons pour exercices multi-muscles)
-    - Compte le volume pour TOUS les muscles primaires simultanément
-    - Utilise le minimum d'exercices nécessaires pour atteindre tous les volumes
-    """
-    exercices_tries = trier_exercices_par_priorite(exercices_choisis)
-    
-    # Tracker global des exercices déjà alloués (éviter doublons)
-    exercices_alloues = {}  # {exo_name: [(muscle, series), ...]}
-    volumes_restants = dict(volumes_hebdo)  # Copie modifiable
-    nb_sessions = len(split.sessions)
-    
-    # Phase 1: Polyarticulaires en priorité
-    for exo_name in exercices_tries:
+    # Trier les exercices par spécificité
+    # Pour BEGINNER: favoriser les exercices multi-muscles (plus de primary_muscles = prioritaire)
+    # Pour ADVANCED: favoriser les exercices spécifiques (moins de primary_muscles = prioritaire)
+    def exercise_specificity(exo_name):
         info = get_exercise_info(exo_name)
-        if not info or info['type'] != 'polyarticulaire':
-            continue
-        
-        # Quels muscles de cet exercice ont encore besoin de volume ?
-        muscles_cibles = [m for m in info['primary_muscles'] if m in volumes_restants and volumes_restants[m] > 0]
-        
-        if not muscles_cibles:
-            continue  # Cet exercice ne sert aucun muscle qui a besoin de volume
-        
-        # Calculer combien de séries allouer pour cet exercice
-        # On prend le MIN des besoins de chaque muscle (pour ne pas dépasser)
-        volume_max_possible = min(volumes_restants[m] for m in muscles_cibles)
-        
-        if level == "beginner":
-            series = min(3, volume_max_possible)
-        else:
-            series = min(4, volume_max_possible)
-        
-        series = min(series, 5)
-        
-        if series == 0:
-            continue
-        
-        # Allouer cet exercice pour TOUS ses muscles primaires concernés
-        exercices_alloues[exo_name] = [(m, series) for m in muscles_cibles]
-        
-        # Déduire le volume de TOUS les muscles primaires
-        for muscle in muscles_cibles:
-            volumes_restants[muscle] -= series
+        if not info:
+            return 999 if level == "beginner" else 0
+        num_muscles = len(info.get("primary_muscles", []))
+        # Beginner: ordre décroissant (plus = mieux), Advanced: ordre croissant (moins = mieux)
+        return -num_muscles if level == "beginner" else num_muscles
     
-    # Phase 2: Isolations pour compléter
-    for exo_name in exercices_tries:
-        info = get_exercise_info(exo_name)
-        if not info or info['type'] != 'isolation':
-            continue
-        
-        # Quels muscles de cet exercice ont encore besoin de volume ?
-        muscles_cibles = [m for m in info['primary_muscles'] if m in volumes_restants and volumes_restants[m] > 0]
-        
-        if not muscles_cibles:
-            continue
-        
-        # Pour les isolations, on peut répéter plusieurs fois si nécessaire
-        nb_apparitions = 0
-        
-        while nb_apparitions < nb_sessions:
-            # Recalculer à chaque itération
-            muscles_encore_besoin = [m for m in muscles_cibles if volumes_restants[m] > 0]
-            if not muscles_encore_besoin:
-                break
-            
-            volume_max_possible = min(volumes_restants[m] for m in muscles_encore_besoin)
-            
-            if volume_max_possible == 0:
-                break
-            
-            # ÉVITER LES SÉRIES UNIQUES : Si volume_max_possible = 1, essayer d'ajouter à une apparition existante
-            if volume_max_possible == 1 and exo_name in exercices_alloues:
-                # Chercher une apparition existante de cet exercice pour ces muscles
-                for i, (m, series) in enumerate(exercices_alloues[exo_name]):
-                    if m in muscles_encore_besoin and series < 5:
-                        # Ajouter 1 série à cette apparition existante
-                        exercices_alloues[exo_name][i] = (m, series + 1)
-                        volumes_restants[m] -= 1
-                        
-                        # Réduire le volume des autres muscles concernés aussi
-                        for autre_m in muscles_encore_besoin:
-                            if autre_m != m and volumes_restants[autre_m] > 0:
-                                # Trouver et mettre à jour l'apparition pour cet autre muscle
-                                for j, (m2, s2) in enumerate(exercices_alloues[exo_name]):
-                                    if m2 == autre_m and s2 < 5:
-                                        exercices_alloues[exo_name][j] = (m2, s2 + 1)
-                                        volumes_restants[autre_m] -= 1
-                                        break
-                        break
-                # Passer à l'exercice suivant
-                break
-            
-            if level == "beginner":
-                series = min(2, volume_max_possible)
-            else:
-                series = min(3, volume_max_possible)
-            
-            series = min(series, 5)
-            
-            if series == 0:
-                break
-            
-            # Ajouter une apparition
-            if exo_name not in exercices_alloues:
-                exercices_alloues[exo_name] = []
-            
-            exercices_alloues[exo_name].extend([(m, series) for m in muscles_encore_besoin])
-            
-            # Déduire le volume
-            for muscle in muscles_encore_besoin:
-                volumes_restants[muscle] = max(0, volumes_restants[muscle] - series)
-            
-            nb_apparitions += 1
-    
-    # Phase 3: Si encore du volume manquant, répéter les polys
-    for exo_name in exercices_tries:
-        info = get_exercise_info(exo_name)
-        if not info or info['type'] != 'polyarticulaire':
-            continue
-        
-        muscles_cibles = [m for m in info['primary_muscles'] if m in volumes_restants and volumes_restants[m] > 0]
-        
-        if not muscles_cibles:
-            continue
-        
-        # Combien d'apparitions déjà ?
-        nb_apparitions_actuelles = len([x for x in exercices_alloues.get(exo_name, [])]) // len(info['primary_muscles'])
-        
-        while nb_apparitions_actuelles < nb_sessions:
-            volume_max_possible = min(volumes_restants[m] for m in muscles_cibles)
-            
-            if volume_max_possible == 0:
-                break
-            
-            # Éviter les séries uniques sur polys
-            if volume_max_possible < 2:
-                break
-            
-            if level == "beginner":
-                series = min(3, volume_max_possible)
-            else:
-                series = min(4, volume_max_possible)
-            
-            series = min(series, 5)
-            
-            if series == 0:
-                break
-            
-            exercices_alloues[exo_name].extend([(m, series) for m in muscles_cibles])
-            
-            for muscle in muscles_cibles:
-                volumes_restants[muscle] -= series
-            
-            nb_apparitions_actuelles += 1
-    
-    # Phase 4: ÉLIMINER LES SÉRIES UNIQUES
-    # Si des muscles ont encore 1 série restante, les redistribuer vers des exercices existants
-    for muscle, volume_restant in list(volumes_restants.items()):
-        if volume_restant == 0:
-            continue
-        
-        # Trouver un exercice déjà alloué pour ce muscle
-        for exo_name, muscles_series_list in exercices_alloues.items():
+    for muscle in temp_pools:
+        pools[muscle]["poly"] = sorted(temp_pools[muscle]["poly"], key=exercise_specificity)
+        pools[muscle]["iso"] = sorted(temp_pools[muscle]["iso"], key=exercise_specificity)
+
+    # Gestion spécifique des épaules : side raise / rear delt si Epaules non en maintenance
+    if "Epaules" in objectifs_muscles and objectifs_muscles["Epaules"] != "maintenance":
+        shoulder_exos = get_exercises_by_muscle("Epaules")
+        has_side = any(
+            (get_exercise_info(e) or {}).get("pattern") == "Side Raise"
+            for e in pools["Epaules"]["iso"]
+        )
+        has_rear = any(
+            (get_exercise_info(e) or {}).get("pattern") == "Rear Delt"
+            for e in pools["Epaules"]["iso"]
+        )
+
+        for exo_name in shoulder_exos:
             info = get_exercise_info(exo_name)
+            if not info or info.get("type") != "isolation":
+                continue
+            pattern = info.get("pattern")
+            if pattern == "Side Raise" and not has_side:
+                pools["Epaules"]["iso"].append(exo_name)
+                has_side = True
+            elif pattern == "Rear Delt" and not has_rear:
+                pools["Epaules"]["iso"].append(exo_name)
+                has_rear = True
+            if has_side and has_rear:
+                break
+
+    return pools, pattern_to_poly_exos
+
+
+# ---------- 3. Répartition des séries par muscle sur les séances ----------
+
+def distribute_muscle_volume_over_sessions(split: Split,
+                                           nb_jours: int,
+                                           muscle_targets: Dict[str, Dict[str, int]]
+                                           ) -> Tuple[List[str], Dict[str, Dict[str, Dict[str, int]]]]:
+    """
+    Calcule, pour chaque séance, combien de séries poly / iso doit faire chaque muscle,
+    en répartissant aussi uniformément que possible sur la semaine.
+    """
+    sessions_names = list(split.sessions.keys())[:nb_jours]
+    session_targets: Dict[str, Dict[str, Dict[str, int]]] = {s: {} for s in sessions_names}
+
+    for muscle, volumes in muscle_targets.items():
+        days_for_muscle = [s for s in sessions_names if muscle in split.sessions[s]]
+        if not days_for_muscle:
+            continue
+        n = len(days_for_muscle)
+
+        for vol_type in ("poly", "iso"):
+            total = volumes[vol_type]
+            if total <= 0:
+                continue
+            base = total // n
+            extra = total % n
+            for idx, session in enumerate(days_for_muscle):
+                sets_here = base + (1 if idx < extra else 0)
+                if sets_here == 0:
+                    continue
+                if muscle not in session_targets[session]:
+                    session_targets[session][muscle] = {"poly": 0, "iso": 0}
+                session_targets[session][muscle][vol_type] += sets_here
+
+    return sessions_names, session_targets
+
+
+# ---------- 4. Sélection d'exercice avec rotation & priorité poly ----------
+
+def _pick_exercise_rotating(muscle: str,
+                            vol_type: str,
+                            pools,
+                            level: Level,
+                            objectifs_muscles: Dict[str, Objectif],
+                            used_in_session: List[str],
+                            rotation_state: Dict[Tuple[str, str], int]):
+    """
+    Choisit un exercice pour un muscle donné et un type (poly / iso) avec :
+      - priorité aux polyarticulaires
+      - rotation entre les exercices disponibles pour varier les séances
+      - préférence pour les exercices non encore utilisés dans la séance
+    """
+    objectif = objectifs_muscles.get(muscle, "maintenance")
+
+    # Pas d'iso en maintenance avancé
+    if level == "advanced" and objectif == "maintenance" and vol_type == "iso":
+        vol_type = "poly"
+
+    candidates = pools[muscle][vol_type]
+
+    # Si aucun n'est dispo, on tente l'autre type (surtout pour biceps / triceps / épaules ou débutant)
+    if not candidates:
+        other_type = "iso" if vol_type == "poly" else "poly"
+        if muscle in ("Biceps", "Triceps", "Epaules") or level == "beginner":
+            candidates = pools[muscle][other_type]
+            vol_type = other_type
+
+    if not candidates:
+        return None
+
+    key = (muscle, vol_type)
+    idx = rotation_state.get(key, 0) % len(candidates)
+
+    # Rotation + préférence exo non utilisé dans la séance
+    ordered = candidates[idx:] + candidates[:idx]
+    chosen = None
+    for exo in ordered:
+        if exo not in used_in_session:
+            chosen = exo
+            break
+    if chosen is None:
+        chosen = ordered[0]
+
+    rotation_state[key] = idx + 1
+
+    return chosen
+
+
+# ---------- 5. Allocation des séries à des exercices concrets ----------
+
+def allocate_exercises_to_sessions(sessions_names: List[str],
+                                   session_targets,
+                                   pools,
+                                   level: Level,
+                                   objectifs_muscles: Dict[str, Objectif]):
+    """
+    Transforme les volumes par séance et par muscle en un planning concret :
+      programme[session] = [ { "exercice": nom, "series": nb }, ... ]
+
+    Règles :
+      - Un exercice ne figure qu'une seule fois par séance.
+      - Un exercice compte pour TOUS ses primary_muscles simultanément.
+      - Le nombre de séries d'un exercice = max(séries demandées par tous les muscles qu'il cible).
+      - Les muscles déjà couverts par un exercice ne reçoivent pas d'exercices supplémentaires.
+    """
+    session_exo_muscle_demands: Dict[str, Dict[str, List[int]]] = {s: {} for s in sessions_names}
+    rotation_state: Dict[Tuple[str, str], int] = {}
+
+    for session in sessions_names:
+        muscles_in_session = session_targets.get(session, {})
+        used_exercises = set()
+        covered_muscles = set()  # Muscles déjà couverts par un exercice dans cette session
+
+        for muscle, vols in muscles_in_session.items():
+            # Skip si ce muscle est déjà couvert par un exercice poly
+            if muscle in covered_muscles:
+                continue
+                
+            for vol_type in ("poly", "iso"):
+                sets_to_place = vols[vol_type]
+                if sets_to_place <= 0:
+                    continue
+
+                exo = _pick_exercise_rotating(
+                    muscle,
+                    vol_type,
+                    pools,
+                    level,
+                    objectifs_muscles,
+                    used_exercises,
+                    rotation_state,
+                )
+                if exo is None:
+                    continue
+
+                used_exercises.add(exo)
+                
+                # Stocker la demande pour cet exercice
+                if exo not in session_exo_muscle_demands[session]:
+                    session_exo_muscle_demands[session][exo] = []
+                session_exo_muscle_demands[session][exo].append(sets_to_place)
+                
+                # Marquer tous les primary muscles de cet exercice comme couverts (poly seulement)
+                info = get_exercise_info(exo)
+                if info and info.get("type") == "polyarticulaire":
+                    for prim_muscle in info.get("primary_muscles", []):
+                        covered_muscles.add(prim_muscle)
+
+    # Convertir en programme: prendre le MAX des demandes pour chaque exercice
+    programme_final: Dict[str, List[Dict[str, int]]] = {}
+
+    for session, exos in session_exo_muscle_demands.items():
+        exo_entries = []
+        for exo_name, demands in exos.items():
+            # Prendre le max des séries demandées
+            total_sets = max(demands) if demands else 0
+            if total_sets > 0:
+                exo_entries.append(
+                    {"exercice": exo_name, "series": total_sets}
+                )
+
+        # Tri poly d'abord, iso ensuite
+        def sort_key(entry):
+            info = get_exercise_info(entry["exercice"])
             if not info:
+                return (1, entry["exercice"])
+            exo_type = info.get("type", "polyarticulaire")
+            return (0 if exo_type == "polyarticulaire" else 1, entry["exercice"])
+
+        exo_entries.sort(key=sort_key)
+        programme_final[session] = exo_entries
+
+    return programme_final
+
+
+# ---------- 6. Couverture minimale des patterns de mouvement (poly ONLY) ----------
+
+def enforce_pattern_coverage(programme: Dict[str, List[Dict[str, int]]],
+                             split: Split,
+                             pattern_to_poly_exos: Dict[str, List[str]]):
+    """
+    S'assure que chaque pattern poly présent dans la sélection d'exercices
+    apparaît au moins une fois dans le programme.
+    On n'ajoute QUE des exos poly, et avec 1 série minimum.
+    """
+    # Patterns déjà utilisés dans le programme (poly uniquement)
+    used_patterns = set()
+    for exos in programme.values():
+        for entry in exos:
+            info = get_exercise_info(entry["exercice"])
+            if info and info.get("type") == "polyarticulaire" and "pattern" in info:
+                used_patterns.add(info["pattern"])
+
+    available_patterns = set(pattern_to_poly_exos.keys())
+    missing_patterns = available_patterns - used_patterns
+
+    if not missing_patterns:
+        return programme
+
+    sessions_names = list(programme.keys())
+
+    for pattern in missing_patterns:
+        exo_list = pattern_to_poly_exos.get(pattern, [])
+        if not exo_list:
+            continue
+        exo_name = exo_list[0]
+        info = get_exercise_info(exo_name)
+        if not info:
+            continue
+
+        primary_muscles = info.get("primary_muscles", [])
+        target_session = sessions_names[0]
+
+        for session in sessions_names:
+            muscles_of_session = split.sessions.get(session, [])
+            if any(m in muscles_of_session for m in primary_muscles):
+                target_session = session
+                break
+
+        session_exos = programme[target_session]
+        found = False
+        for entry in session_exos:
+            if entry["exercice"] == exo_name:
+                entry["series"] = max(entry["series"], 1)
+                found = True
+                break
+        if not found:
+            session_exos.append({"exercice": exo_name, "series": 1})
+
+        # On retrie poly/iso
+        def sort_key(entry):
+            info_e = get_exercise_info(entry["exercice"])
+            if not info_e:
+                return (1, entry["exercice"])
+            exo_type = info_e.get("type", "polyarticulaire")
+            return (0 if exo_type == "polyarticulaire" else 1, entry["exercice"])
+
+        session_exos.sort(key=sort_key)
+
+    return programme
+
+
+# ---------- 7. Fonctions principales ----------
+
+def generate_workout_program(nb_jours: int,
+                             objectifs_muscles: Dict[str, Objectif],
+                             exercices_choisis: List[str],
+                             level: Level = "advanced"):
+    """
+    Génère un programme avec compteur strict de volume par muscle.
+    RÈGLE CLÉ: Si un exercice existe déjà qui cible un muscle, on augmente ses séries
+    au lieu d'ajouter un nouvel exercice pour ce muscle.
+    """
+    split = create_prog(nb_jours)
+    sessions_names = list(split.sessions.keys())[:nb_jours]
+    
+    # 1. Initialiser les cibles de volume par muscle
+    muscle_targets = compute_muscle_targets(objectifs_muscles, level)
+    
+    # 2. Construire les pools d'exercices
+    pools, _ = build_exercise_pools(exercices_choisis, objectifs_muscles, level)
+    
+    # 3. Initialiser les compteurs de volume par muscle (volume hebdomadaire réalisé)
+    muscle_counters = {muscle: 0 for muscle in objectifs_muscles.keys()}
+    
+    # 4. Initialiser le programme par session
+    programme: Dict[str, List[Dict[str, any]]] = {s: [] for s in sessions_names}
+    
+    # 5. Rotation pour varier les exercices entre sessions
+    rotation_index = {muscle: {vtype: 0 for vtype in ["poly", "iso"]} for muscle in objectifs_muscles.keys()}
+    
+    # 6. Tracker: quels exercices ont déjà été assignés (un exercice = un seul "propriétaire")
+    exercise_owner: Dict[str, str] = {}  # {exercice_name: muscle_name}
+    # MAIS: si l'exercice cible plusieurs muscles, les autres peuvent "profiter" du volume
+    exercise_benefits: Dict[str, Set[str]] = {}  # {exercice_name: {tous les muscles qui en profitent}}
+    
+    # 7. Allouer les exercices session par session en mode round-robin
+    session_idx = 0
+    max_iterations = 1000
+    iteration = 0
+    
+    while any(muscle_counters[m] < muscle_targets[m]["total"] for m in objectifs_muscles.keys()) and iteration < max_iterations:
+        iteration += 1
+        session_name = sessions_names[session_idx % nb_jours]
+        muscles_in_session = split.sessions[session_name]
+        
+        # Trouver un muscle qui a besoin de volume dans cette session
+        muscle_added = False
+        for muscle in muscles_in_session:
+            if muscle not in objectifs_muscles:
+                continue
+            # Tolérance : si le muscle est à +/-1 série du target, le considérer comme satisfait
+            # (on ne peut ajouter que par tranches de 2 séries minimum)
+            current = muscle_counters[muscle]
+            target = muscle_targets[muscle]["total"]
+            if abs(current - target) <= 1 or current >= target:
                 continue
             
-            # Cet exercice travaille-t-il ce muscle ?
-            if muscle not in info['primary_muscles']:
-                continue
+            # Pas encore d'exercice pour ce muscle, en choisir un nouveau
+            # MAIS AVANT : vérifier si un exercice du même pattern ciblant ce muscle existe déjà dans cette session
+            # Si oui, augmenter ses séries au lieu d'ajouter un nouvel exercice
             
-            # Trouver une apparition existante de cet exercice pour ce muscle
-            for i, (m, series) in enumerate(muscles_series_list):
-                if m == muscle:
-                    # Ajouter le volume restant à cette apparition
-                    nouvelle_series = min(series + volume_restant, 5)
-                    ajout = nouvelle_series - series
+            # D'abord, déterminer quel type d'exercice on veut ajouter (poly/iso)
+            global_poly = 0
+            global_iso = 0
+            for sess in sessions_names:
+                for exo_entry in programme[sess]:
+                    exo_name = exo_entry["exercice"]
+                    is_owner = exo_name in exercise_owner and exercise_owner[exo_name] == muscle
+                    is_beneficiary = exo_name in exercise_benefits and muscle in exercise_benefits[exo_name]
                     
-                    if ajout > 0:
-                        # Mettre à jour les séries
-                        muscles_series_list[i] = (m, nouvelle_series)
-                        volumes_restants[muscle] -= ajout
-                        
-                        if volumes_restants[muscle] <= 0:
+                    if is_owner or is_beneficiary:
+                        exo_info = get_exercise_info(exo_name)
+                        if exo_info:
+                            if exo_info.get("type") == "polyarticulaire":
+                                global_poly += exo_entry["series"]
+                            else:
+                                global_iso += exo_entry["series"]
+            
+            # Déterminer quel type d'exercice ajouter
+            vol_type = None
+            if global_poly < muscle_targets[muscle]["poly"]:
+                vol_type = "poly"
+            elif global_iso < muscle_targets[muscle]["iso"]:
+                vol_type = "iso"
+            
+            if not vol_type:
+                continue
+            
+            # Maintenant chercher dans cette session si un exercice du bon type existe pour ce muscle
+            existing_in_session = None
+            for exo_entry in programme[session_name]:
+                existing_exo_name = exo_entry["exercice"]
+                existing_info = get_exercise_info(existing_exo_name)
+                if existing_info:
+                    existing_primary = existing_info.get("primary_muscles", [])
+                    existing_type = existing_info.get("type", "")
+                    
+                    # Vérifier si cet exercice cible notre muscle ET est du bon type
+                    if muscle in existing_primary:
+                        if (vol_type == "poly" and existing_type == "polyarticulaire") or \
+                           (vol_type == "iso" and existing_type == "isolation"):
+                            # Vérifier que l'ajout de séries ne ferait pas dépasser les bénéficiaires
+                            would_overflow_beneficiaries = False
+                            for prim_muscle in existing_primary:
+                                if prim_muscle in objectifs_muscles and prim_muscle != muscle:
+                                    if muscle_counters[prim_muscle] >= muscle_targets[prim_muscle]["total"]:
+                                        would_overflow_beneficiaries = True
+                                        break
+                            
+                            # Seulement si aucun bénéficiaire ne dépasserait
+                            if not would_overflow_beneficiaries:
+                                existing_in_session = existing_exo_name
+                                break
+            
+            # Si on a trouvé un exercice du bon type pour ce muscle, augmenter ses séries
+            # MAIS limiter à 4 séries max par exercice dans une session
+            if existing_in_session:
+                current_series = 0
+                for exo_entry in programme[session_name]:
+                    if exo_entry["exercice"] == existing_in_session:
+                        current_series = exo_entry["series"]
+                        # Limiter à 4 séries max par exercice dans une session
+                        if current_series < 4:
+                            exo_entry["series"] += 2
+                            
+                            # Incrémenter les compteurs
+                            muscle_counters[muscle] += 2
+                            
+                            # Si cet exercice a des bénéficiaires, les incrémenter aussi (sauf s'ils ont atteint leur target)
+                            if existing_in_session in exercise_benefits:
+                                for beneficiary in list(exercise_benefits[existing_in_session]):
+                                    if beneficiary in muscle_counters:
+                                        # Vérifier si le bénéficiaire a encore besoin de volume
+                                        if muscle_counters[beneficiary] < muscle_targets[beneficiary]["total"]:
+                                            muscle_counters[beneficiary] += 2
+                                        # Retirer ce muscle des bénéficiaires s'il a atteint son target
+                                        if muscle_counters[beneficiary] >= muscle_targets[beneficiary]["total"]:
+                                            exercise_benefits[existing_in_session].remove(beneficiary)
+                            
+                            muscle_added = True
+                        # Si déjà à 4 séries, ne pas augmenter (on ajoutera un nouvel exercice)
+                        break
+                
+                if muscle_added:
+                    break
+            
+            # Pas d'exercice du bon type trouvé, continuer pour en choisir un nouveau
+            # (global_poly, global_iso et vol_type déjà calculés ci-dessus)
+            
+            # Choisir un exercice
+            candidates = pools[muscle][vol_type]
+            if not candidates:
+                # Fallback pour biceps/triceps/épaules ou débutant
+                other_type = "iso" if vol_type == "poly" else "poly"
+                if muscle in ("Biceps", "Triceps", "Epaules") or level == "beginner":
+                    candidates = pools[muscle][other_type]
+                    vol_type = other_type if candidates else vol_type
+            
+            if not candidates:
+                continue
+            
+            # NOUVEAU : Pour les muscles avec plusieurs patterns (ex: Dorsaux),
+            # favoriser un pattern différent de ceux déjà utilisés
+            used_patterns = set()
+            for exo_name_temp, owner in exercise_owner.items():
+                if owner == muscle:
+                    info_temp = get_exercise_info(exo_name_temp)
+                    if info_temp and info_temp.get("pattern"):
+                        used_patterns.add(info_temp.get("pattern"))
+            
+            # Trier les candidats : patterns non utilisés en premier
+            candidates_sorted = []
+            candidates_new_pattern = []
+            candidates_used_pattern = []
+            
+            for candidate in candidates:
+                info_cand = get_exercise_info(candidate)
+                if info_cand:
+                    cand_pattern = info_cand.get("pattern")
+                    if cand_pattern and cand_pattern not in used_patterns:
+                        candidates_new_pattern.append(candidate)
+                    else:
+                        candidates_used_pattern.append(candidate)
+            
+            # Prioriser les nouveaux patterns, puis les patterns déjà utilisés
+            candidates_sorted = candidates_new_pattern + candidates_used_pattern
+            if not candidates_sorted:
+                candidates_sorted = candidates
+            
+            # Rotation et sélection avec la liste triée
+            # Chercher un exercice qui ne fait pas dépasser les bénéficiaires
+            exo_name = None
+            for attempt in range(len(candidates_sorted)):
+                idx = rotation_index[muscle][vol_type] % len(candidates_sorted)
+                candidate = candidates_sorted[idx]
+                rotation_index[muscle][vol_type] += 1
+                
+                # Vérifier si cet exercice est déjà pris
+                if candidate in exercise_owner:
+                    continue
+                
+                # Vérifier les muscles ciblés par cet exercice
+                candidate_info = get_exercise_info(candidate)
+                if not candidate_info:
+                    continue
+                
+                candidate_muscles = candidate_info.get("primary_muscles", [])
+                
+                # Vérifier si ajouter cet exercice ferait dépasser un muscle bénéficiaire
+                would_overflow = False
+                for prim_muscle in candidate_muscles:
+                    if prim_muscle in objectifs_muscles and prim_muscle != muscle:
+                        current_vol = muscle_counters[prim_muscle]
+                        target_vol = muscle_targets[prim_muscle]["total"]
+                        # Si ce muscle a déjà atteint ou dépassé son target, éviter cet exercice
+                        # Tolérance : on accepte si le muscle est à target-1 (car minimum 2 séries)
+                        if current_vol >= target_vol:
+                            would_overflow = True
+                            break
+                
+                if not would_overflow:
+                    exo_name = candidate
+                    break
+            
+            # Si aucun exercice trouvé sans débordement, prendre le premier disponible
+            if not exo_name:
+                for candidate in candidates_sorted:
+                    if candidate not in exercise_owner:
+                        candidate_info = get_exercise_info(candidate)
+                        if candidate_info:
+                            exo_name = candidate
                             break
             
-            if volumes_restants[muscle] <= 0:
-                break
-    
-    # Convertir en format d'allocation par muscle
-    allocation = {muscle: [] for muscle in volumes_hebdo.keys()}
-    
-    for exo_name, muscles_series_list in exercices_alloues.items():
-        # Grouper par muscle
-        par_muscle = {}
-        for muscle, series in muscles_series_list:
-            if muscle not in par_muscle:
-                par_muscle[muscle] = []
-            par_muscle[muscle].append(series)
-        
-        # Ajouter à l'allocation
-        for muscle, series_list in par_muscle.items():
-            for series in series_list:
-                allocation[muscle].append((exo_name, 1, series))
-    
-    return allocation
-
-
-def repartir_exercices_full_body(allocation_exercices, volumes_hebdo, nb_jours, level="advanced"):
-    """Répartit les exercices sur les séances Full Body
-    
-    CRITIQUE: Quand un exercice a plusieurs muscles primaires, il faut créer UNE SEULE
-    apparition physique qui compte pour TOUS ces muscles simultanément.
-    """
-    nb_sessions = min(nb_jours, 3)
-    sessions = {f"session_{chr(65+i)}": [] for i in range(nb_sessions)}
-    volumes_par_session = {s: 0 for s in sessions.keys()}
-    patterns_utilises = {s: set() for s in sessions.keys()}
-    exercices_par_session = {s: {} for s in sessions.keys()}
-    
-    # Créer les apparitions en évitant les doublons pour exercices multi-muscles
-    apparitions = []
-    apparitions_traitees = set()  # (exo_name, series, muscle_index)
-    
-    # D'abord, identifier toutes les entrées de l'allocation
-    toutes_entrees = []
-    for muscle, exercices_list in allocation_exercices.items():
-        for idx, (exo_name, nb_apparitions, series_exactes) in enumerate(exercices_list):
-            toutes_entrees.append((muscle, exo_name, series_exactes, idx))
-    
-    # Grouper les entrées par (exo_name, series) pour détecter les muscles multiples
-    for muscle, exo_name, series_exactes, idx in toutes_entrees:
-        # Clé unique pour cette entrée spécifique
-        entree_key = (exo_name, series_exactes, muscle, idx)
-        
-        if entree_key in apparitions_traitees:
-            continue
-        
-        info = get_exercise_info(exo_name)
-        if not info:
-            continue
-        
-        # Trouver TOUS les muscles de cette allocation qui partagent cette apparition
-        # (même exercice, même nombre de séries, même index)
-        muscles_concernes = [muscle]
-        apparitions_traitees.add(entree_key)
-        
-        # Chercher les autres muscles primaires de cet exercice
-        for autre_muscle in info['primary_muscles']:
-            if autre_muscle == muscle or autre_muscle not in allocation_exercices:
+            # Si toujours rien, passer
+            if not exo_name:
                 continue
             
-            # Vérifier si ce muscle a aussi cet exercice avec ces séries au même index
-            autres_exos = allocation_exercices[autre_muscle]
-            if idx < len(autres_exos):
-                autre_exo, autre_nb, autre_series = autres_exos[idx]
-                if autre_exo == exo_name and autre_series == series_exactes:
-                    muscles_concernes.append(autre_muscle)
-                    apparitions_traitees.add((exo_name, series_exactes, autre_muscle, idx))
-        
-        # Créer UNE apparition avec TOUS les muscles concernés
-        apparitions.append((exo_name, muscles_concernes, info, series_exactes))
-    
-    # Trier les apparitions (polyarticulaires jambes en premier)
-    apparitions.sort(key=lambda x: (
-        0 if x[2]['type'] == 'polyarticulaire' and x[2]['category'] == 'legs' else
-        1 if x[2]['type'] == 'polyarticulaire' else 2
-    ))
-    
-    # Distribuer chaque apparition
-    for exo_name, muscles_concernes, info, series_exactes in apparitions:
-        pattern = info['pattern']
-        session_choisie = None
-        min_volume = float('inf')
-        
-        for session_name in sessions.keys():
-            # RÈGLE 1: Un exercice peut apparaître plusieurs fois dans le programme
-            # mais limite raisonnable dans une même session (max 1 fois par session généralement)
-            if exercices_par_session[session_name].get(exo_name, 0) >= 1:
+            # Récupérer les infos de l'exercice pour savoir quels muscles il cible
+            exo_info = get_exercise_info(exo_name)
+            if not exo_info:
                 continue
             
-            # RÈGLE 2: Contrainte Full Body UNIQUEMENT pour 3+ jours
-            # Pour 2 jours, on priorise le VOLUME - pas de contraintes push/pull
-            if nb_jours >= 3 and info['type'] == 'polyarticulaire':
-                push_patterns = {'Horizontal Push (Chest)', 'Vertical Push', 'Incline Push'}
-                pull_patterns = {'Horizontal Pull', 'Vertical Pull'}
-                
-                # Si c'est un push polyarticulaire et la session contient déjà un push polyarticulaire, on skip
-                if pattern in push_patterns:
-                    if patterns_utilises[session_name] & push_patterns:
-                        continue
-                # Si c'est un pull polyarticulaire et la session contient déjà un pull polyarticulaire, on skip
-                if pattern in pull_patterns:
-                    if patterns_utilises[session_name] & pull_patterns:
-                        continue
+            primary_muscles = exo_info.get("primary_muscles", [])
             
-            # Choisir session avec moins de volume
-            if volumes_par_session[session_name] < min_volume:
-                min_volume = volumes_par_session[session_name]
-                session_choisie = session_name
-        
-        # Si aucune session ne respecte les contraintes, prendre n'importe quelle session disponible
-        if session_choisie is None:
-            # Prendre la session avec le moins de volume, sans contraintes
-            session_choisie = min(sessions.keys(), key=lambda s: volumes_par_session[s])
-        
-        # Ajouter l'exercice
-        sessions[session_choisie].append({
-            "exercice": exo_name,
-            "series": str(series_exactes),
-            "muscles": muscles_concernes  # TOUS les muscles primaires de l'allocation
-        })
-        
-        # Mettre à jour les trackers
-        if nb_jours >= 3 and info['type'] == 'polyarticulaire':
-            patterns_utilises[session_choisie].add(pattern)
-        exercices_par_session[session_choisie][exo_name] = exercices_par_session[session_choisie].get(exo_name, 0) + 1
-        volumes_par_session[session_choisie] += series_exactes
-    
-    # Trier (polyarticulaires en premier)
-    for session_name in sessions.keys():
-        sessions[session_name].sort(key=lambda x: (
-            0 if get_exercise_info(x['exercice'])['type'] == 'polyarticulaire' else 1,
-            0 if get_exercise_info(x['exercice'])['category'] == 'legs' else 1
-        ))
-    
-    return sessions
-
-
-def repartir_exercices_upper_lower(allocation_exercices, volumes_hebdo, nb_jours, level="advanced"):
-    """Répartit les exercices sur les séances Upper/Lower
-    
-    IMPORTANT: Grouper les exercices multi-muscles pour éviter les doublons.
-    """
-    sessions = {
-        "upper_A": [],
-        "lower_A": [],
-        "upper_B": [],
-        "lower_B": []
-    }
-    volumes_par_session = {s: 0 for s in sessions.keys()}
-    exercices_par_session = {s: {} for s in sessions.keys()}
-    
-    # Créer les apparitions en évitant les doublons pour exercices multi-muscles
-    apparitions = []
-    apparitions_traitees = set()
-    
-    toutes_entrees = []
-    for muscle, exercices_list in allocation_exercices.items():
-        for idx, (exo_name, nb_apparitions, series_exactes) in enumerate(exercices_list):
-            toutes_entrees.append((muscle, exo_name, series_exactes, idx))
-    
-    for muscle, exo_name, series_exactes, idx in toutes_entrees:
-        entree_key = (exo_name, series_exactes, muscle, idx)
-        
-        if entree_key in apparitions_traitees:
-            continue
-        
-        info = get_exercise_info(exo_name)
-        if not info:
-            continue
-        
-        muscles_concernes = [muscle]
-        apparitions_traitees.add(entree_key)
-        
-        for autre_muscle in info['primary_muscles']:
-            if autre_muscle == muscle or autre_muscle not in allocation_exercices:
-                continue
+            # Assigner ce muscle comme propriétaire de l'exercice
+            exercise_owner[exo_name] = muscle
             
-            autres_exos = allocation_exercices[autre_muscle]
-            if idx < len(autres_exos):
-                autre_exo, autre_nb, autre_series = autres_exos[idx]
-                if autre_exo == exo_name and autre_series == series_exactes:
-                    muscles_concernes.append(autre_muscle)
-                    apparitions_traitees.add((exo_name, series_exactes, autre_muscle, idx))
-        
-        apparitions.append((exo_name, muscles_concernes, info, series_exactes))
-    
-    # Trier les apparitions (polyarticulaires en premier)
-    apparitions.sort(key=lambda x: (
-        0 if x[2]['type'] == 'polyarticulaire' and x[2]['category'] == 'legs' else
-        1 if x[2]['type'] == 'polyarticulaire' else 2
-    ))
-    
-    # Distribuer chaque apparition
-    for exo_name, muscles_concernes, info, series_exactes in apparitions:
-        if info['category'] in ['push', 'pull', 'core']:
-            sessions_cibles = ['upper_A', 'upper_B']
-        else:
-            sessions_cibles = ['lower_A', 'lower_B']
-        
-        # Trouver session qui n'a pas encore cet exercice et a le moins de volume
-        session_choisie = None
-        min_volume = float('inf')
-        
-        for s in sessions_cibles:
-            if exercices_par_session[s].get(exo_name, 0) < 1:
-                if volumes_par_session[s] < min_volume:
-                    min_volume = volumes_par_session[s]
-                    session_choisie = s
-        
-        # Si l'exercice est déjà dans toutes les sessions, prendre celle avec moins de volume
-        if session_choisie is None:
-            session_choisie = min(sessions_cibles, key=lambda s: volumes_par_session[s])
-        
-        sessions[session_choisie].append({
-            "exercice": exo_name,
-            "series": str(series_exactes),
-            "muscles": muscles_concernes  # TOUS les muscles
-        })
-        
-        exercices_par_session[session_choisie][exo_name] = exercices_par_session[session_choisie].get(exo_name, 0) + 1
-        volumes_par_session[session_choisie] += series_exactes
-    
-    for session_name in sessions.keys():
-        sessions[session_name].sort(key=lambda x: (
-            0 if get_exercise_info(x['exercice'])['type'] == 'polyarticulaire' else 1
-        ))
-    
-    return sessions
-
-
-def repartir_exercices_ppl(allocation_exercices, volumes_hebdo, level="advanced"):
-    """Répartit les exercices sur les séances Push/Pull/Legs
-    
-    IMPORTANT: Grouper les exercices multi-muscles pour éviter les doublons.
-    """
-    sessions = {
-        "push_A": [],
-        "pull_A": [],
-        "legs_A": [],
-        "push_B": [],
-        "pull_B": [],
-        "legs_B": []
-    }
-    volumes_par_session = {s: 0 for s in sessions.keys()}
-    exercices_par_session = {s: {} for s in sessions.keys()}
-    
-    # Créer les apparitions en évitant les doublons pour exercices multi-muscles
-    apparitions = []
-    apparitions_traitees = set()
-    
-    toutes_entrees = []
-    for muscle, exercices_list in allocation_exercices.items():
-        for idx, (exo_name, nb_apparitions, series_exactes) in enumerate(exercices_list):
-            toutes_entrees.append((muscle, exo_name, series_exactes, idx))
-    
-    for muscle, exo_name, series_exactes, idx in toutes_entrees:
-        entree_key = (exo_name, series_exactes, muscle, idx)
-        
-        if entree_key in apparitions_traitees:
-            continue
-        
-        info = get_exercise_info(exo_name)
-        if not info:
-            continue
-        
-        muscles_concernes = [muscle]
-        apparitions_traitees.add(entree_key)
-        
-        for autre_muscle in info['primary_muscles']:
-            if autre_muscle == muscle or autre_muscle not in allocation_exercices:
-                continue
+            # Les autres muscles ciblés deviennent bénéficiaires (si besoin de volume ET ne dépassent pas)
+            exercise_benefits[exo_name] = set()
+            for prim_muscle in primary_muscles:
+                if prim_muscle in objectifs_muscles and prim_muscle != muscle:
+                    # Ajouter seulement si ce muscle n'a pas encore atteint son target
+                    if muscle_counters[prim_muscle] < muscle_targets[prim_muscle]["total"]:
+                        exercise_benefits[exo_name].add(prim_muscle)
             
-            autres_exos = allocation_exercices[autre_muscle]
-            if idx < len(autres_exos):
-                autre_exo, autre_nb, autre_series = autres_exos[idx]
-                if autre_exo == exo_name and autre_series == series_exactes:
-                    muscles_concernes.append(autre_muscle)
-                    apparitions_traitees.add((exo_name, series_exactes, autre_muscle, idx))
-        
-        apparitions.append((exo_name, muscles_concernes, info, series_exactes))
-    
-    # Trier les apparitions (polyarticulaires en premier)
-    apparitions.sort(key=lambda x: (
-        0 if x[2]['type'] == 'polyarticulaire' and x[2]['category'] == 'legs' else
-        1 if x[2]['type'] == 'polyarticulaire' else 2
-    ))
-    
-    # Distribuer chaque apparition
-    for exo_name, muscles_concernes, info, series_exactes in apparitions:
-        if info['category'] == 'push' or info['category'] == 'core':
-            sessions_cibles = ['push_A', 'push_B']
-        elif info['category'] == 'pull':
-            sessions_cibles = ['pull_A', 'pull_B']
-        else:
-            sessions_cibles = ['legs_A', 'legs_B']
-        
-        # Trouver session qui n'a pas encore cet exercice et a le moins de volume
-        session_choisie = None
-        min_volume = float('inf')
-        
-        for s in sessions_cibles:
-            if exercices_par_session[s].get(exo_name, 0) < 1:
-                if volumes_par_session[s] < min_volume:
-                    min_volume = volumes_par_session[s]
-                    session_choisie = s
-        
-        # Si l'exercice est déjà dans toutes les sessions, prendre celle avec moins de volume
-        if session_choisie is None:
-            session_choisie = min(sessions_cibles, key=lambda s: volumes_par_session[s])
-        
-        sessions[session_choisie].append({
-            "exercice": exo_name,
-            "series": str(series_exactes),
-            "muscles": muscles_concernes  # TOUS les muscles
-        })
-        
-        exercices_par_session[session_choisie][exo_name] = exercices_par_session[session_choisie].get(exo_name, 0) + 1
-        volumes_par_session[session_choisie] += series_exactes
-    
-    for session_name in sessions.keys():
-        sessions[session_name].sort(key=lambda x: (
-            0 if get_exercise_info(x['exercice'])['type'] == 'polyarticulaire' else 1
-        ))
-    
-    return sessions
-
-
-def ajuster_volumes_exacts(programme, volumes_hebdo):
-    """Ajuste les séries pour atteindre exactement les volumes cibles"""
-    MAX_ITERATIONS = 10
-    
-    for iteration in range(MAX_ITERATIONS):
-        # Calculer volume actuel par muscle
-        volumes_actuels = {}
-        exercices_par_muscle = {}
-        
-        for session_name, exercices in programme.items():
-            for exo in exercices:
-                muscle = exo['muscles'][0]
-                series_str = exo['series']
-                
-                if '-' in series_str:
-                    min_s, max_s = map(int, series_str.split('-'))
-                    avg = (min_s + max_s) / 2.0
-                else:
-                    avg = float(series_str)
-                
-                volumes_actuels[muscle] = volumes_actuels.get(muscle, 0) + avg
-                
-                if muscle not in exercices_par_muscle:
-                    exercices_par_muscle[muscle] = []
-                exercices_par_muscle[muscle].append((session_name, exo))
-        
-        # Vérifier convergence
-        tout_bon = True
-        
-        # Ajuster chaque muscle
-        for muscle, volume_cible in volumes_hebdo.items():
-            volume_actuel = volumes_actuels.get(muscle, 0)
-            diff = volume_cible - volume_actuel
+            # Ajouter l'exercice dans la session
+            programme[session_name].append({"exercice": exo_name, "series": 2})
             
-            if abs(diff) < 0.1:
-                continue
+            # Mettre à jour le compteur du muscle propriétaire
+            muscle_counters[muscle] += 2
             
-            tout_bon = False
+            # ET AUSSI les compteurs des muscles bénéficiaires
+            for beneficiary in exercise_benefits[exo_name]:
+                muscle_counters[beneficiary] += 2
             
-            if muscle not in exercices_par_muscle:
-                continue
-            
-            exos = exercices_par_muscle[muscle]
-            nb_exos = len(exos)
-            
-            # Calculer l'ajustement total nécessaire
-            series_totales_a_ajuster = abs(diff)
-            
-            # Distribuer l'ajustement sur tous les exercices
-            for idx, (session_name, exo) in enumerate(exos):
-                series_str = exo['series']
-                
-                if '-' in series_str:
-                    min_s, max_s = map(int, series_str.split('-'))
-                else:
-                    min_s = max_s = int(series_str)
-                
-                # Part de l'ajustement pour cet exercice
-                ajustement = series_totales_a_ajuster / nb_exos
-                
-                if diff > 0:
-                    # Augmenter
-                    # Stratégie: augmenter le max et parfois le min
-                    if ajustement >= 1.5:
-                        # Grosse augmentation nécessaire
-                        new_max = 5
-                        new_min = min(5, max(2, min_s + int(ajustement / 2)))
-                    elif ajustement >= 0.8:
-                        # Augmentation moyenne
-                        new_max = min(5, max_s + 1)
-                        new_min = max(2, min(new_max, min_s))
-                    else:
-                        # Petite augmentation
-                        new_max = min(5, max_s + 1)
-                        new_min = min_s
-                else:
-                    # Diminuer
-                    # Stratégie: diminuer le min et parfois le max
-                    if ajustement >= 1.5:
-                        new_min = 2
-                        new_max = max(2, min(5, max_s - int(ajustement / 2)))
-                    elif ajustement >= 0.8:
-                        new_min = max(2, min_s - 1)
-                        new_max = max(new_min, min(5, max_s))
-                    else:
-                        new_min = max(2, min_s - 1)
-                        new_max = max_s
-                
-                # Mettre à jour
-                if new_min == new_max:
-                    exo['series'] = str(new_max)
-                else:
-                    exo['series'] = f"{new_min}-{new_max}"
-        
-        if tout_bon:
+            muscle_added = True
             break
-
-
-def generate_workout_program(nb_jours, objectifs_muscles, exercices_choisis, level="advanced", pattern_muscles=None):
-    """Génère un programme d'entraînement complet avec volumes EXACTS"""
-    split = create_prog(nb_jours)
-    volumes_hebdo = calculer_volume_hebdomadaire(objectifs_muscles, level)
-    allocation = selectionner_exercices_necessaires(exercices_choisis, volumes_hebdo, split, level)
+        
+        # Passer à la session suivante
+        if muscle_added:
+            session_idx += 1
+        else:
+            session_idx += 1
     
-    if split.name == "Full Body":
-        programme = repartir_exercices_full_body(allocation, volumes_hebdo, nb_jours, level)
-    elif split.name == "Upper/Lower":
-        programme = repartir_exercices_upper_lower(allocation, volumes_hebdo, nb_jours, level)
-    else:
-        programme = repartir_exercices_ppl(allocation, volumes_hebdo, level)
-    
-    # Plus besoin d'ajuster - les volumes sont déjà exacts !
+    # 8. Consolider les exercices dupliqués et filtrer < 2 séries
+    for session in sessions_names:
+        # Consolider: fusionner les exercices identiques
+        consolidated = {}
+        for exo_entry in programme[session]:
+            exo_name = exo_entry["exercice"]
+            if exo_name in consolidated:
+                consolidated[exo_name] += exo_entry["series"]
+            else:
+                consolidated[exo_name] = exo_entry["series"]
+        
+        # Reconstruire la liste
+        programme[session] = [
+            {"exercice": name, "series": sets}
+            for name, sets in consolidated.items()
+            if sets >= 2
+        ]
+        
+        # Trier poly avant iso
+        def sort_key(entry):
+            info = get_exercise_info(entry["exercice"])
+            if not info:
+                return (1, entry["exercice"])
+            exo_type = info.get("type", "polyarticulaire")
+            return (0 if exo_type == "polyarticulaire" else 1, entry["exercice"])
+        
+        programme[session].sort(key=sort_key)
     
     return programme
 
 
-def create_complete_program(nb_jours, objectifs_muscles, exercices_choisis, level="advanced"):
-    """Fonction wrapper pour l'application web"""
+def create_complete_program(nb_jours: int,
+                            objectifs_muscles: Dict[str, Objectif],
+                            exercices_choisis: List[str],
+                            level: Level = "advanced"):
+    """
+    Wrapper pour le front :
+      - programme détaillé
+      - nom du split ("Full Body", "Upper/Lower", "Push/Pull/Legs")
+      - ordre des sessions à afficher
+    """
     split = create_prog(nb_jours)
     programme = generate_workout_program(nb_jours, objectifs_muscles, exercices_choisis, level)
-    sessions_order = list(split.sessions.keys())
-    
+    sessions_order = list(split.sessions.keys())[:nb_jours]
     return programme, split.name, sessions_order
-
-
-if __name__ == "__main__":
-    print("Test du générateur de programme\n")
-    
-    sample_exercices = [
-        'Bench press', 'Dips', 'Dumbell Bench Press', 
-        'Overhead press', 'Machine Overhead press',
-        'Bent over row', 'Pull up', 'Machine row',
-        'Barbell squat', 'Hack squat',
-        'Stiff leg deadlift', 'Barbell Hip Thrust',
-        'Curl', 'Hammer curl', 'Preacher curl',
-        'Pushdown', 'Tricep extension', 'Skull crushers',
-        'Lateral raises', 'Machine ab crunch'
-    ]
-    
-    sample_objectifs = {
-        'Pectoraux': 'normal_growth',
-        'Epaules': 'normal_growth',
-        'Dorsaux': 'normal_growth',
-        'Biceps': 'prioritised_growth',
-        'Triceps': 'normal_growth',
-        'Quadriceps': 'normal_growth',
-        'Isquios-jambiers': 'maintenance',
-        'Abdominaux': 'maintenance'
-    }
-    
-    for jours in [2, 3, 4, 5, 6]:
-        print(f"\n{'='*60}")
-        print(f"Programme {jours} jours/semaine (ADVANCED)")
-        print('='*60)
-        
-        prog, split_name, order = create_complete_program(jours, sample_objectifs, sample_exercices, "advanced")
-        
-        print(f"Split: {split_name}")
-        print(f"Sessions: {order}\n")
-        
-        for session_name in order:
-            if session_name not in prog or not prog[session_name]:
-                continue
-            print(f"\n{session_name.upper()}:")
-            for exo in prog[session_name]:
-                print(f"  - {exo['exercice']}: {exo['series']} séries ({exo['muscles']})")
-        
-        print("\nVérification volumes hebdomadaires:")
-        volumes = {}
-        for session_name, exercices in prog.items():
-            for exo in exercices:
-                muscle = exo['muscles'][0]
-                series = exo['series']
-                if '-' in series:
-                    min_s, max_s = map(int, series.split('-'))
-                    avg = (min_s + max_s) / 2
-                else:
-                    avg = float(series)
-                volumes[muscle] = volumes.get(muscle, 0) + avg
-        
-        for muscle, vol in sorted(volumes.items()):
-            objectif = sample_objectifs.get(muscle, 'N/A')
-            if objectif != 'N/A':
-                cible = calculer_volume_hebdomadaire({muscle: objectif})[muscle]
-                print(f"  {muscle}: {vol:.1f} séries (cible: {cible})")
