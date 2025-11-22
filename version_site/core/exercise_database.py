@@ -451,7 +451,7 @@ EXERCISE_DATABASE = {
         "name": "Barbell Deadlift",
         "category": "legs",
         "pattern": "Hip Hinge",
-        "type": "isolation",
+        "type": "polyarticulaire",
         "primary_muscles":["Isquios-jambiers", "Fessiers", "Lombaires"],
         "secondary_muscles": [],
         "all_muscles": ["Lombaires", "Isquios-jambiers", "Fessiers"],

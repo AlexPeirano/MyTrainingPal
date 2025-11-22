@@ -1,13 +1,15 @@
 import os
 import sys
-from flask import Flask, render_template, request, send_file, abort, url_for, redirect, session, jsonify
+from flask import Flask, render_template, request, send_file, abort, url_for, redirect, session, jsonify, make_response
+from weasyprint import HTML
+from io import BytesIO
 
 # make project root importable (assume exercise_database.py is at project root)
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_ROOT)
 
-from version_site.core.exercise_database import get_pattern_list_for_interface, get_exercise_info, get_muscle_list_with_images
-from version_site.core.prog import create_complete_program
+from core.exercise_database import get_pattern_list_for_interface, get_exercise_info, get_muscle_list_with_images
+from core.prog import create_complete_program
 
 app = Flask(__name__, template_folder="templates")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-key-please-change")
@@ -34,7 +36,6 @@ def safe_join_root(rel_path):
     
     # Define all possible image directories
     tk_images_root = os.path.normpath(os.path.join(PROJECT_ROOT, "version_tkinter", "images"))
-    tk_images2_root = os.path.normpath(os.path.join(PROJECT_ROOT, "version_tkinter", "images 2"))
     site_exercices2_root = os.path.normpath(os.path.join(PROJECT_ROOT, "version_site", "exercices2"))
     
     if candidate.startswith(PROJECT_ROOT) and os.path.exists(candidate):
@@ -55,26 +56,16 @@ def safe_join_root(rel_path):
     if alt3 and os.path.exists(alt3):
         return alt3
     
-    # Try in version_tkinter/images 2 folder
-    alt4 = os.path.normpath(os.path.join(tk_images2_root, os.path.basename(rel_path)))
-    if os.path.exists(alt4):
-        return alt4
-    
-    # Try joining rel_path to version_tkinter/images 2
-    alt5 = os.path.normpath(os.path.join(tk_images2_root, os.path.relpath(rel_path, "images"))) if rel_path.startswith("images") else None
-    if alt5 and os.path.exists(alt5):
-        return alt5
-    
     # Try in version_site/exercices2 folder (for new exercises)
     if rel_path.startswith("exercices2/"):
-        alt6 = os.path.normpath(os.path.join(site_exercices2_root, os.path.relpath(rel_path, "exercices2")))
-        if os.path.exists(alt6):
-            return alt6
+        alt4 = os.path.normpath(os.path.join(site_exercices2_root, os.path.relpath(rel_path, "exercices2")))
+        if os.path.exists(alt4):
+            return alt4
     
     # Try direct path in version_site/exercices2
-    alt7 = os.path.normpath(os.path.join(site_exercices2_root, os.path.basename(rel_path)))
-    if os.path.exists(alt7):
-        return alt7
+    alt5 = os.path.normpath(os.path.join(site_exercices2_root, os.path.basename(rel_path)))
+    if os.path.exists(alt5):
+        return alt5
     
     return None
 
@@ -257,6 +248,9 @@ def generate():
     selected = session.get('selected_exercises', [])
     level = session.get('level', 'advanced')  # Default to advanced if not set
 
+    # DEBUG: Log what's being sent to the generator
+    app.logger.info('GENERATE: days=%s, level=%s, objectifs=%s, selected=%s', days, level, objectifs, selected)
+
     # create_complete_program returns a tuple (programme_by_session, split_name, sessions_order)
     programme_by_session, split_name, sessions_order = create_complete_program(days, objectifs, selected, level)
     # optional client-side dedupe flag: only enable dedupe script when explicitly requested
@@ -305,6 +299,57 @@ def program_json():
         'split_name': split_name,
         'sessions_order': sessions_order
     })
+
+
+@app.route('/download_pdf')
+def download_pdf():
+    """Generate and download the program as a PDF"""
+    try:
+        days = int(request.args.get('days', 3))
+    except Exception:
+        days = 3
+
+    objectifs = session.get('muscle_goals', {})
+    selected = session.get('selected_exercises', [])
+    level = session.get('level', 'advanced')
+
+    # Generate program
+    programme_by_session, split_name, sessions_order = create_complete_program(days, objectifs, selected, level)
+    
+    # Map sessions to day numbers
+    program_days = {d+1: [] for d in range(days)}
+    for day in range(1, days+1):
+        session_name = sessions_order[(day-1) % len(sessions_order)] if sessions_order else None
+        if session_name and session_name in programme_by_session:
+            exs = []
+            seen = set()
+            for item in programme_by_session[session_name]:
+                name = item.get('exercice') if isinstance(item, dict) else (item[0] if isinstance(item, tuple) else str(item))
+                series = item.get('series') if isinstance(item, dict) else ''
+                if name in seen:
+                    continue
+                seen.add(name)
+                info = get_exercise_info(name)
+                path = info.get('image_path') if info else None
+                exs.append((name, path, series))
+            program_days[day] = exs
+        else:
+            program_days[day] = []
+    
+    # Render HTML template for PDF
+    html_string = render_template('program_pdf.html', program=program_days, split_name=split_name)
+    
+    # Generate PDF
+    pdf_buffer = BytesIO()
+    HTML(string=html_string, base_url=request.host_url).write_pdf(pdf_buffer)
+    pdf_buffer.seek(0)
+    
+    # Create response
+    response = make_response(pdf_buffer.getvalue())
+    response.headers['Content-Type'] = 'application/pdf'
+    response.headers['Content-Disposition'] = f'attachment; filename=mon_programme_{split_name.replace("/", "-")}.pdf'
+    
+    return response
 
 
 if __name__ == "__main__":

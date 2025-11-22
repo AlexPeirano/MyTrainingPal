@@ -12,7 +12,10 @@
         <div class="app-title">MyTrainingPal</div>
         <div class="app-sub">Votre programme</div>
       </div>
-      <div class="topbar"><a class="reset-btn" href="{{ url_for('muscles') }}">← Nouvelle sélection</a></div>
+      <div class="topbar">
+        <a class="reset-btn" href="{{ url_for('download_pdf', days=program|length) }}" style="margin-right: 10px; background: #28a745;">📥 Télécharger mon programme</a>
+        <a class="reset-btn" href="{{ url_for('muscles') }}">← Nouvelle sélection</a>
+      </div>
     </header>
 
     {% for day, exs in program.items() %}

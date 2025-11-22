@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>Mon Programme d'Entraînement</title>
+  <style>
+    :root {
+      /* MyFitnessPal Color Palette */
+      --mfp-blue: #0072CE;
+      --mfp-blue-dark: #005A9C;
+      --mfp-blue-light: #E8F4FD;
+      --mfp-green: #28A745;
+      --mfp-red: #DC3545;
+      --mfp-orange: #FF6B35;
+      --mfp-purple: #6F42C1;
+      --mfp-gray: #F5F6F8;
+      --mfp-gray-dark: #5A6268;
+      --mfp-text: #2C3E50;
+      --mfp-border: #DEE2E6;
+      
+      /* Semantic colors */
+      --bg: #F5F6F8;
+      --surface: #FFFFFF;
+      --muted: #6C757D;
+      --primary: #0072CE;
+      --primary-hover: #005A9C;
+      --accent: #0072CE;
+      --shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--mfp-text);
+      padding: 20px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      border-radius: 8px;
+    }
+    
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      color: white;
+      letter-spacing: -0.5px;
+      margin-bottom: 2px;
+    }
+    
+    .subtitle {
+      font-size: 14px;
+      color: rgba(255,255,255,0.9);
+      font-weight: 400;
+    }
+    
+    .split-info {
+      background: var(--mfp-blue-light);
+      padding: 15px 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border-left: 4px solid var(--primary);
+      font-weight: 600;
+      color: var(--mfp-text);
+    }
+    
+    .program-day {
+      page-break-inside: avoid;
+      background: var(--surface);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--mfp-border);
+    }
+    
+    .program-day h3 {
+      color: var(--primary);
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid var(--mfp-blue-light);
+    }
+    
+    .program-day-items {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    
+    .exercise-item {
+      background: white;
+      border: 2px solid var(--mfp-border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      width: 160px;
+      page-break-inside: avoid;
+    }
+    
+    .exercise-item img {
+      width: 100%;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      background: var(--mfp-gray);
+    }
+    
+    .exercise-name {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--mfp-text);
+      line-height: 1.3;
+      margin-bottom: 4px;
+    }
+    
+    .exercise-series {
+      color: var(--primary);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    
+    .footer {
+      margin-top: 30px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--mfp-border);
+      padding-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">MyTrainingPal</div>
+    <div class="subtitle">Votre programme personnalisé</div>
+  </div>
+
+  {% if split_name %}
+  <div class="split-info">
+    Type de split : {{ split_name }}
+  </div>
+  {% endif %}
+
+  {% for day, exs in program.items() %}
+    <div class="program-day">
+      <h3>Jour {{ day }}</h3>
+      {% if exs %}
+        <div class="program-day-items">
+        {% for name, path, series in exs %}
+          <div class="exercise-item">
+            {% if path %}
+              <img src="{{ request.host_url }}media/{{ path }}" alt="{{ name }}">
+            {% endif %}
+            <div class="exercise-name">{{ name }}</div>
+            {% if series %}
+              <div class="exercise-series">{{ series }} séries</div>
+            {% endif %}
+          </div>
+        {% endfor %}
+        </div>
+      {% else %}
+        <p>Aucun exercice.</p>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  <div class="footer">
+    Programme généré par MyTrainingPal
+  </div>
+</body>
+</html>
