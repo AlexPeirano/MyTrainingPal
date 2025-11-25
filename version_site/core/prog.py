@@ -495,10 +495,13 @@ def generate_workout_program(nb_jours: int,
     # 5. Rotation pour varier les exercices entre sessions
     rotation_index = {muscle: {vtype: 0 for vtype in ["poly", "iso"]} for muscle in objectifs_muscles.keys()}
     
-    # 6. Tracker: quels exercices ont déjà été assignés (un exercice = un seul "propriétaire")
-    exercise_owner: Dict[str, str] = {}  # {exercice_name: muscle_name}
-    # MAIS: si l'exercice cible plusieurs muscles, les autres peuvent "profiter" du volume
-    exercise_benefits: Dict[str, Set[str]] = {}  # {exercice_name: {tous les muscles qui en profitent}}
+    # 6. Tracker: quels exercices sont utilisés dans chaque session
+    # Un exercice peut maintenant apparaître dans PLUSIEURS sessions
+    exercise_in_session: Dict[str, Set[str]] = {}  # {exercice_name: {session_names}}
+    # Tracker des propriétaires par session : {session_name: {exercice_name: muscle_owner}}
+    exercise_owner_per_session: Dict[str, Dict[str, str]] = {s: {} for s in sessions_names}
+    # Bénéficiaires par exercice et par session
+    exercise_benefits_per_session: Dict[str, Dict[str, Set[str]]] = {s: {} for s in sessions_names}
     
     # 7. Allouer les exercices session par session en mode round-robin
     session_idx = 0
@@ -522,18 +525,15 @@ def generate_workout_program(nb_jours: int,
             if abs(current - target) <= 1 or current >= target:
                 continue
             
-            # Pas encore d'exercice pour ce muscle, en choisir un nouveau
-            # MAIS AVANT : vérifier si un exercice du même pattern ciblant ce muscle existe déjà dans cette session
-            # Si oui, augmenter ses séries au lieu d'ajouter un nouvel exercice
-            
-            # D'abord, déterminer quel type d'exercice on veut ajouter (poly/iso)
+            # Déterminer quel type d'exercice on veut ajouter (poly/iso)
             global_poly = 0
             global_iso = 0
             for sess in sessions_names:
                 for exo_entry in programme[sess]:
                     exo_name = exo_entry["exercice"]
-                    is_owner = exo_name in exercise_owner and exercise_owner[exo_name] == muscle
-                    is_beneficiary = exo_name in exercise_benefits and muscle in exercise_benefits[exo_name]
+                    # Vérifier si cet exercice dans cette session appartient à ce muscle
+                    is_owner = exo_name in exercise_owner_per_session[sess] and exercise_owner_per_session[sess][exo_name] == muscle
+                    is_beneficiary = exo_name in exercise_benefits_per_session[sess] and muscle in exercise_benefits_per_session[sess][exo_name]
                     
                     if is_owner or is_beneficiary:
                         exo_info = get_exercise_info(exo_name)
@@ -593,16 +593,16 @@ def generate_workout_program(nb_jours: int,
                             # Incrémenter les compteurs
                             muscle_counters[muscle] += 2
                             
-                            # Si cet exercice a des bénéficiaires, les incrémenter aussi (sauf s'ils ont atteint leur target)
-                            if existing_in_session in exercise_benefits:
-                                for beneficiary in list(exercise_benefits[existing_in_session]):
+                            # Si cet exercice a des bénéficiaires dans cette session, les incrémenter aussi
+                            if existing_in_session in exercise_benefits_per_session[session_name]:
+                                for beneficiary in list(exercise_benefits_per_session[session_name][existing_in_session]):
                                     if beneficiary in muscle_counters:
                                         # Vérifier si le bénéficiaire a encore besoin de volume
                                         if muscle_counters[beneficiary] < muscle_targets[beneficiary]["total"]:
                                             muscle_counters[beneficiary] += 2
                                         # Retirer ce muscle des bénéficiaires s'il a atteint son target
                                         if muscle_counters[beneficiary] >= muscle_targets[beneficiary]["total"]:
-                                            exercise_benefits[existing_in_session].remove(beneficiary)
+                                            exercise_benefits_per_session[session_name][existing_in_session].remove(beneficiary)
                             
                             muscle_added = True
                         # Si déjà à 4 séries, ne pas augmenter (on ajoutera un nouvel exercice)
@@ -612,7 +612,6 @@ def generate_workout_program(nb_jours: int,
                     break
             
             # Pas d'exercice du bon type trouvé, continuer pour en choisir un nouveau
-            # (global_poly, global_iso et vol_type déjà calculés ci-dessus)
             
             # Choisir un exercice
             candidates = pools[muscle][vol_type]
@@ -626,17 +625,18 @@ def generate_workout_program(nb_jours: int,
             if not candidates:
                 continue
             
-            # NOUVEAU : Pour les muscles avec plusieurs patterns (ex: Dorsaux),
-            # favoriser un pattern différent de ceux déjà utilisés
+            # Pour les muscles avec plusieurs patterns (ex: Dorsaux),
+            # favoriser un pattern différent de ceux déjà utilisés GLOBALEMENT
             used_patterns = set()
-            for exo_name_temp, owner in exercise_owner.items():
-                if owner == muscle:
-                    info_temp = get_exercise_info(exo_name_temp)
-                    if info_temp and info_temp.get("pattern"):
-                        used_patterns.add(info_temp.get("pattern"))
+            for sess in sessions_names:
+                if sess in exercise_owner_per_session:
+                    for exo_name_temp, owner in exercise_owner_per_session[sess].items():
+                        if owner == muscle:
+                            info_temp = get_exercise_info(exo_name_temp)
+                            if info_temp and info_temp.get("pattern"):
+                                used_patterns.add(info_temp.get("pattern"))
             
             # Trier les candidats : patterns non utilisés en premier
-            candidates_sorted = []
             candidates_new_pattern = []
             candidates_used_pattern = []
             
@@ -655,15 +655,16 @@ def generate_workout_program(nb_jours: int,
                 candidates_sorted = candidates
             
             # Rotation et sélection avec la liste triée
-            # Chercher un exercice qui ne fait pas dépasser les bénéficiaires
+            # Un exercice peut maintenant être utilisé dans PLUSIEURS sessions
             exo_name = None
             for attempt in range(len(candidates_sorted)):
                 idx = rotation_index[muscle][vol_type] % len(candidates_sorted)
                 candidate = candidates_sorted[idx]
                 rotation_index[muscle][vol_type] += 1
                 
-                # Vérifier si cet exercice est déjà pris
-                if candidate in exercise_owner:
+                # Vérifier si cet exercice est déjà dans CETTE session
+                already_in_this_session = any(e["exercice"] == candidate for e in programme[session_name])
+                if already_in_this_session:
                     continue
                 
                 # Vérifier les muscles ciblés par cet exercice
@@ -679,8 +680,6 @@ def generate_workout_program(nb_jours: int,
                     if prim_muscle in objectifs_muscles and prim_muscle != muscle:
                         current_vol = muscle_counters[prim_muscle]
                         target_vol = muscle_targets[prim_muscle]["total"]
-                        # Si ce muscle a déjà atteint ou dépassé son target, éviter cet exercice
-                        # Tolérance : on accepte si le muscle est à target-1 (car minimum 2 séries)
                         if current_vol >= target_vol:
                             would_overflow = True
                             break
@@ -689,10 +688,11 @@ def generate_workout_program(nb_jours: int,
                     exo_name = candidate
                     break
             
-            # Si aucun exercice trouvé sans débordement, prendre le premier disponible
+            # Si aucun exercice trouvé sans débordement, prendre le premier disponible qui n'est pas déjà dans cette session
             if not exo_name:
                 for candidate in candidates_sorted:
-                    if candidate not in exercise_owner:
+                    already_in_this_session = any(e["exercice"] == candidate for e in programme[session_name])
+                    if not already_in_this_session:
                         candidate_info = get_exercise_info(candidate)
                         if candidate_info:
                             exo_name = candidate
@@ -709,16 +709,21 @@ def generate_workout_program(nb_jours: int,
             
             primary_muscles = exo_info.get("primary_muscles", [])
             
-            # Assigner ce muscle comme propriétaire de l'exercice
-            exercise_owner[exo_name] = muscle
+            # Assigner ce muscle comme propriétaire de l'exercice DANS CETTE SESSION
+            exercise_owner_per_session[session_name][exo_name] = muscle
+            
+            # Tracker cet exercice dans cette session
+            if exo_name not in exercise_in_session:
+                exercise_in_session[exo_name] = set()
+            exercise_in_session[exo_name].add(session_name)
             
             # Les autres muscles ciblés deviennent bénéficiaires (si besoin de volume ET ne dépassent pas)
-            exercise_benefits[exo_name] = set()
+            exercise_benefits_per_session[session_name][exo_name] = set()
             for prim_muscle in primary_muscles:
                 if prim_muscle in objectifs_muscles and prim_muscle != muscle:
                     # Ajouter seulement si ce muscle n'a pas encore atteint son target
                     if muscle_counters[prim_muscle] < muscle_targets[prim_muscle]["total"]:
-                        exercise_benefits[exo_name].add(prim_muscle)
+                        exercise_benefits_per_session[session_name][exo_name].add(prim_muscle)
             
             # Ajouter l'exercice dans la session
             programme[session_name].append({"exercice": exo_name, "series": 2})
@@ -727,7 +732,7 @@ def generate_workout_program(nb_jours: int,
             muscle_counters[muscle] += 2
             
             # ET AUSSI les compteurs des muscles bénéficiaires
-            for beneficiary in exercise_benefits[exo_name]:
+            for beneficiary in exercise_benefits_per_session[session_name][exo_name]:
                 muscle_counters[beneficiary] += 2
             
             muscle_added = True
