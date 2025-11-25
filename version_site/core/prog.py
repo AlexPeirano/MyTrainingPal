@@ -725,15 +725,28 @@ def generate_workout_program(nb_jours: int,
                     if muscle_counters[prim_muscle] < muscle_targets[prim_muscle]["total"]:
                         exercise_benefits_per_session[session_name][exo_name].add(prim_muscle)
             
+            # Calculer le nombre de séries initial en fonction du volume restant et du nombre de jours
+            # Pour éviter trop d'exercices à 2 séries, on commence avec plus de séries si nécessaire
+            volume_restant = muscle_targets[muscle]["total"] - muscle_counters[muscle]
+            series_per_day_needed = volume_restant / nb_jours
+            
+            # Déterminer le nombre de séries à ajouter
+            if series_per_day_needed >= 4:
+                initial_series = 4  # Maximum par exercice
+            elif series_per_day_needed >= 3:
+                initial_series = 4  # Mieux vaut 4 séries qu'ajouter un autre exercice
+            else:
+                initial_series = 2  # Par défaut
+            
             # Ajouter l'exercice dans la session
-            programme[session_name].append({"exercice": exo_name, "series": 2})
+            programme[session_name].append({"exercice": exo_name, "series": initial_series})
             
             # Mettre à jour le compteur du muscle propriétaire
-            muscle_counters[muscle] += 2
+            muscle_counters[muscle] += initial_series
             
             # ET AUSSI les compteurs des muscles bénéficiaires
             for beneficiary in exercise_benefits_per_session[session_name][exo_name]:
-                muscle_counters[beneficiary] += 2
+                muscle_counters[beneficiary] += initial_series
             
             muscle_added = True
             break
