@@ -656,6 +656,7 @@ def generate_workout_program(nb_jours: int,
             
             # Rotation et sélection avec la liste triée
             # Un exercice peut maintenant être utilisé dans PLUSIEURS sessions
+            # MAIS on limite à 2 apparitions par semaine maximum pour éviter trop de répétitions
             exo_name = None
             for attempt in range(len(candidates_sorted)):
                 idx = rotation_index[muscle][vol_type] % len(candidates_sorted)
@@ -665,6 +666,13 @@ def generate_workout_program(nb_jours: int,
                 # Vérifier si cet exercice est déjà dans CETTE session
                 already_in_this_session = any(e["exercice"] == candidate for e in programme[session_name])
                 if already_in_this_session:
+                    continue
+                
+                # Compter combien de fois cet exercice apparaît déjà dans la semaine
+                times_in_week = sum(1 for sess in sessions_names if any(e["exercice"] == candidate for e in programme[sess]))
+                # Limiter à 2 apparitions par semaine (sauf si on manque vraiment d'exercices)
+                max_appearances = 2 if nb_jours >= 3 else nb_jours
+                if times_in_week >= max_appearances and attempt < len(candidates_sorted) - 1:
                     continue
                 
                 # Vérifier les muscles ciblés par cet exercice
@@ -736,7 +744,7 @@ def generate_workout_program(nb_jours: int,
             elif series_per_day_needed >= 3:
                 initial_series = 4  # Mieux vaut 4 séries qu'ajouter un autre exercice
             else:
-                initial_series = 2  # Par défaut
+                initial_series = 3  # Par défaut (préférer 3 séries plutôt que 2)
             
             # Ajouter l'exercice dans la session
             programme[session_name].append({"exercice": exo_name, "series": initial_series})
